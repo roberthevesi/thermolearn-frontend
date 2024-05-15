@@ -2,28 +2,12 @@ import React, { useState, useRef } from "react";
 import { View, Alert, Text, TouchableOpacity } from "react-native";
 import api from "../utils/api";
 import { useAuth } from "../utils/AuthContext";
-import { useNavigation } from "@react-navigation/native";
-import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const HomeScreen = () => {
-	const navigation = useNavigation();
-
+const HomeScreen = ({ navigation }) => {
 	const [temperature, setTemperature] = useState(22);
 	const timeoutId = useRef(null);
-
-	const { isAuthenticated, logout } = useAuth();
-
-	useEffect(() => {
-		if (!isAuthenticated) {
-			const timeout = setTimeout(() => {
-				navigation.reset({
-					index: 0,
-					routes: [{ name: "Login" }],
-				});
-			}, 100); // Small delay
-			return () => clearTimeout(timeout);
-		}
-	}, [isAuthenticated, navigation]);
+	const { logout } = useAuth();
 
 	const handlePress = async (temp) => {
 		if (timeoutId.current) {
@@ -32,8 +16,16 @@ const HomeScreen = () => {
 
 		timeoutId.current = setTimeout(async () => {
 			try {
+				const token = await AsyncStorage.getItem("userToken");
+
 				const response = await api.post(
-					`/demo?mode=manual&desiredTemp=${temp}`
+					`/demo?mode=manual&desiredTemp=${temp}`,
+					{},
+					{
+						headers: {
+							Authorization: `Bearer ${token}`,
+						},
+					}
 				);
 				Alert.alert(
 					"Success",
@@ -47,10 +39,13 @@ const HomeScreen = () => {
 		}, 2000); // 2s delay
 	};
 
-	const handleLogout = () => {
-		setTimeout(() => {
-			logout();
-		}, 100);
+	const handleLogout = async () => {
+		try {
+			await logout();
+			navigation.navigate("Login");
+		} catch (error) {
+			console.error("Logout failed:", error);
+		}
 	};
 
 	return (

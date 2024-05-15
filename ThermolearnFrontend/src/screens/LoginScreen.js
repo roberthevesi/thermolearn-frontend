@@ -6,45 +6,45 @@ import {
 	StyleSheet,
 	TouchableOpacity,
 	Image,
+	Alert,
 } from "react-native";
-import api from "../utils/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../utils/AuthContext";
-import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LoginScreen = ({ navigation }) => {
-	const { isAuthenticated, setIsAuthenticated } = useAuth();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
-
-	useEffect(() => {
-		if (isAuthenticated) {
-			navigation.navigate("Home");
-		}
-	}, [isAuthenticated, navigation]);
+	const { login } = useAuth();
+	const { sendNewRegistrationCode } = useAuth();
 
 	const handleLogin = async () => {
 		try {
-			const response = await api.post("/auth/authenticate", {
-				email: email,
-				password: password,
-			});
-
-			console.log("Login successful:", response.data);
-			await AsyncStorage.setItem("@user_token", response.data.token);
-			setIsAuthenticated(true);
-			navigation.navigate("Home");
+			const isAccountVerified = await login(email, password);
+			if (isAccountVerified) {
+				navigation.navigate("Main");
+			} else {
+				navigation.navigate("Verify Account");
+			}
 		} catch (error) {
-			console.error(
-				"Login failed:",
-				error.response ? error.response.data : error.message
+			console.error("Login failed:", error);
+			Alert.alert(
+				"Login Failed",
+				"Something went wrong. Please check your credentials and try again.",
+				[{ text: "OK" }],
+				{ cancelable: false }
 			);
 		}
 	};
 
+	const isFormValid = () => email.trim() !== "" && password.trim() !== "";
+
 	return (
 		<View style={styles.container}>
-			<Image style={styles.logo} source={require("../assets/logo.png")} />
+			<Image
+				style={styles.logo}
+				source={require("../../assets/logo.png")}
+			/>
+
 			<TextInput
 				style={styles.input}
 				autoCapitalize="none"
@@ -52,6 +52,7 @@ const LoginScreen = ({ navigation }) => {
 				value={email}
 				onChangeText={setEmail}
 			/>
+
 			<TextInput
 				style={styles.input}
 				placeholder="Password"
@@ -59,10 +60,22 @@ const LoginScreen = ({ navigation }) => {
 				autoCapitalize="none"
 				value={password}
 				onChangeText={setPassword}
+				returnKeyType="go"
+				onSubmitEditing={handleLogin}
+				disabled={!isFormValid()}
 			/>
-			<TouchableOpacity style={styles.button} onPress={handleLogin}>
+
+			<TouchableOpacity
+				style={[
+					styles.button,
+					isFormValid() ? {} : styles.disabledButton,
+				]}
+				onPress={handleLogin}
+				disabled={!isFormValid()}
+			>
 				<Text style={styles.buttonText}>Login</Text>
 			</TouchableOpacity>
+
 			<TouchableOpacity
 				style={styles.semiTransparentButton}
 				onPress={() => navigation.navigate("Register")}
@@ -71,9 +84,10 @@ const LoginScreen = ({ navigation }) => {
 					Create a new account
 				</Text>
 			</TouchableOpacity>
+
 			<TouchableOpacity
 				style={styles.transparentButton}
-				onPress={() => navigation.navigate("ForgotPassword")}
+				onPress={() => navigation.navigate("Forgot Password")}
 			>
 				<Text style={styles.transparentButtonText}>
 					Forgot your password?
@@ -111,6 +125,9 @@ const styles = StyleSheet.create({
 		backgroundColor: "#14293d",
 		alignItems: "center",
 		borderRadius: 5,
+	},
+	disabledButton: {
+		backgroundColor: "#aaa",
 	},
 	buttonText: {
 		color: "white",
