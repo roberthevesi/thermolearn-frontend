@@ -47,6 +47,8 @@ export const AuthProvider = ({ children }) => {
 			if (isAccountVerified) {
 				const { token } = response.data;
 				await AsyncStorage.setItem("userToken", token);
+				var userId = response.data.user.id.toString();
+				console.log("User ID:", userId);
 				setUserToken(token);
 				return true;
 			} else {
