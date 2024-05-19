@@ -3,7 +3,10 @@ import { createStackNavigator } from "@react-navigation/stack";
 import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import VerifyRegistrationCodeScreen from "../screens/VerifyRegistrationCodeScreen";
-import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
+import ForgottenPasswordScreen from "../screens/ForgottenPasswordScreen";
+import VerifyForgottenPasswordCodeScreen from "../screens/VerifyForgottenPasswordCodeScreen";
+import SetNewPasswordScreen from "../screens/SetNewPasswordScreen";
+
 import BottomTabNavigator from "../components/BottomTabNavigator";
 
 const Stack = createStackNavigator();
@@ -34,7 +37,17 @@ function StackNavigator({ initialRouteName }) {
 			/>
 			<Stack.Screen
 				name="Forgot Password"
-				component={ForgotPasswordScreen}
+				component={ForgottenPasswordScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Verify Forgotten Password"
+				component={VerifyForgottenPasswordCodeScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Set New Password"
+				component={SetNewPasswordScreen}
 				options={{ headerShown: true }}
 			/>
 		</Stack.Navigator>

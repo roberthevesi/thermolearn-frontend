@@ -89,6 +89,19 @@ export const AuthProvider = ({ children }) => {
 		}
 	};
 
+	const sendNewRegistrationCode = async (email) => {
+		try {
+			console.log("Sending new registration code to:", email);
+			const url = `/user/send-new-registration-code?email=${encodeURIComponent(
+				email
+			)}`;
+			const response = await api.post(url);
+		} catch (error) {
+			console.error("Send New Registration Code Failed:", error);
+			throw error;
+		}
+	};
+
 	const verifyRegistrationCode = async (email, code) => {
 		try {
 			const response = await api.post("/user/verify-registration-code", {
@@ -104,15 +117,53 @@ export const AuthProvider = ({ children }) => {
 		}
 	};
 
-	const sendNewRegistrationCode = async (email) => {
+	const sendForgottenPasswordCode = async (email) => {
 		try {
-			console.log("Sending new registration code to:", email);
-			const url = `/user/send-new-registration-code?email=${encodeURIComponent(
+			console.log("Sending forgot password code to:", email);
+			const url = `/user/send-forgotten-password-code?email=${encodeURIComponent(
 				email
 			)}`;
 			const response = await api.post(url);
+			await AsyncStorage.setItem("userEmail", email);
 		} catch (error) {
-			console.error("Send New Registration Code Failed:", error);
+			await AsyncStorage.removeItem("userEmail");
+			console.error("Send forgot password code Failed:", error);
+			throw error;
+		}
+	};
+
+	const verifyForgottenPasswordCode = async (email, code) => {
+		try {
+			console.log("Verifying forgot password code for:", email);
+			const response = await api.post(
+				"/user/verify-forgotten-password-code",
+				{
+					email: email,
+					code: code,
+				}
+			);
+
+			if (response.data == false) {
+				return false;
+			}
+			return true;
+		} catch (error) {
+			await AsyncStorage.removeItem("userEmail");
+			console.error("Verify forgot password Code Failed:", error);
+			throw error;
+		}
+	};
+
+	const resetPassword = async (email, password) => {
+		try {
+			console.log("Resetting password for:", email);
+			const response = await api.post("/user/reset-forgotten-password", {
+				email: email,
+				password: password,
+			});
+		} catch (error) {
+			await AsyncStorage.removeItem("userEmail");
+			console.error("Reset password Failed:", error);
 			throw error;
 		}
 	};
@@ -143,8 +194,11 @@ export const AuthProvider = ({ children }) => {
 				initialRoute,
 				login,
 				register,
-				verifyRegistrationCode,
 				sendNewRegistrationCode,
+				verifyRegistrationCode,
+				sendForgottenPasswordCode,
+				verifyForgottenPasswordCode,
+				resetPassword,
 				logout,
 			}}
 		>
