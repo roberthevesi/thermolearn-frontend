@@ -47,8 +47,6 @@ export const AuthProvider = ({ children }) => {
 			if (isAccountVerified) {
 				const { token } = response.data;
 				await AsyncStorage.setItem("userToken", token);
-				// const token2 = await AsyncStorage.getItem("userToken");
-				// console.log("Logged in...", token2);
 				setUserToken(token);
 				return true;
 			} else {
@@ -56,11 +54,9 @@ export const AuthProvider = ({ children }) => {
 				sendNewRegistrationCode(email);
 
 				return false;
-				// navigation.navigate("VerifyRegistrationCode");
 			}
 
 			console.log(response.data.user);
-			// setInitialRoute("Main");
 		} catch (error) {
 			console.error("Login failed:", error);
 			throw error;
@@ -76,12 +72,6 @@ export const AuthProvider = ({ children }) => {
 				lastName: lastName,
 			});
 			await AsyncStorage.setItem("userEmail", email);
-			// const { token } = response.data;
-			// await AsyncStorage.setItem("userToken", token);
-			// const token2 = await AsyncStorage.getItem("userToken");
-			// console.log("Registered...", token2);
-			// setUserToken(token);
-			// setInitialRoute("Main");
 		} catch (error) {
 			await AsyncStorage.removeItem("userEmail");
 			console.error("Registration failed:", error);

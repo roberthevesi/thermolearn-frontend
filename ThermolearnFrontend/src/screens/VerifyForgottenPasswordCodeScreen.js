@@ -25,7 +25,7 @@ const VerifyForgottenPasswordCodeScreen = ({ navigation }) => {
 	const confirmExit = (navigation) => {
 		Alert.alert(
 			"Confirm Exit",
-			"Are you sure you want to cancel the account verification? You can verify it later.",
+			"Are you sure you want to cancel the password reset? You can reset it later.",
 			[
 				{ text: "No", style: "cancel" },
 				{
@@ -51,20 +51,6 @@ const VerifyForgottenPasswordCodeScreen = ({ navigation }) => {
 			console.log("Verification response:", response);
 			if (response === true) {
 				navigation.navigate("Set New Password");
-				// Alert.alert(
-				// 	"Account Verified",
-				// 	"Your account has been successfully verified. Please log in.",
-				// 	[
-				// 		{
-				// 			text: "OK",
-				// 			onPress: async () => {
-				// 				await AsyncStorage.removeItem("userEmail");
-				// 				navigation.navigate("Login");
-				// 			},
-				// 		},
-				// 	],
-				// 	{ cancelable: false }
-				// );
 			} else {
 				Alert.alert(
 					"Verification Failed",
