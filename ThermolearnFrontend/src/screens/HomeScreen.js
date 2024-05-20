@@ -1,13 +1,5 @@
-import React, { useState, useEffect } from "react";
-import {
-	View,
-	Alert,
-	Text,
-	TouchableOpacity,
-	StyleSheet,
-	Button,
-	Image,
-} from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Alert, Text, TouchableOpacity, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
@@ -17,6 +9,7 @@ const HomeScreen = ({ navigation }) => {
 	const [temperature, setTemperature] = useState(22);
 	const [thermostats, setThermostats] = useState([]);
 	const [loading, setLoading] = useState(true);
+	const timeoutId = useRef(null);
 
 	const handlePress = async (temp) => {
 		if (timeoutId.current) {
@@ -159,6 +152,45 @@ const HomeScreen = ({ navigation }) => {
 		}
 	};
 
+	const handleUnpairThermostat = async (thermostatId) => {
+		try {
+			const userId = await AsyncStorage.getItem("userId");
+			if (!userId) {
+				Alert.alert("Error", "User ID not found in storage.");
+				return;
+			}
+
+			const token = await AsyncStorage.getItem("userToken");
+			console.log(
+				"Unpairing thermostat:",
+				thermostatId,
+				"for user:",
+				userId
+			);
+			const response = await api.post(
+				`/thermostat/unpair-thermostat`,
+				{ userId, thermostatId },
+				{
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+				}
+			);
+
+			if (response.status === 200) {
+				Alert.alert("Success", "Thermostat unpaired successfully!");
+
+				fetchPairedThermostats();
+			} else {
+				Alert.alert("Error", "Failed to unpair thermostat.");
+			}
+		} catch (error) {
+			console.error("Failed to unpair thermostat", error);
+			Alert.alert("Error", "Failed to unpair thermostat.");
+		}
+	};
+
 	useEffect(() => {
 		fetchPairedThermostats();
 	}, []);
@@ -185,21 +217,35 @@ const HomeScreen = ({ navigation }) => {
 
 	return (
 		<View style={styles.container}>
-			{thermostats.length === 0 ? (
-				<View style={styles.centered}>
-					<Text>No paired thermostats found.</Text>
-				</View>
-			) : (
-				<View style={styles.thermostatsList}>
-					{thermostats.map((thermostat) => (
-						<Text key={thermostat.id} style={styles.thermostatId}>
-							Thermostat ID: {thermostat.thermostatId}
+			<View style={styles.thermostatCard}>
+				{thermostats.length === 0 ? (
+					<View style={styles.centered}>
+						<Text>No paired thermostats found.</Text>
+						<TouchableOpacity
+							style={styles.addButton}
+							onPress={openImagePicker}
+						>
+							<Text style={styles.buttonText}>Add</Text>
+						</TouchableOpacity>
+					</View>
+				) : (
+					<View style={styles.thermostatContainer}>
+						<Text style={styles.thermostatId}>
+							Thermostat ID: {thermostats[0].thermostatId}
 						</Text>
-					))}
-				</View>
-			)}
-
-			<Button title="Add Thermostat" onPress={openImagePicker} />
+						<TouchableOpacity
+							style={styles.removeButton}
+							onPress={() =>
+								handleUnpairThermostat(
+									thermostats[0].thermostatId
+								)
+							}
+						>
+							<Text style={styles.buttonText}>X</Text>
+						</TouchableOpacity>
+					</View>
+				)}
+			</View>
 
 			<View style={styles.tempControl}>
 				<TouchableOpacity
@@ -207,22 +253,21 @@ const HomeScreen = ({ navigation }) => {
 						setTemperature((prevTemp) => prevTemp - 0.5);
 						handlePress(temperature - 0.5);
 					}}
+					style={styles.tempButton}
 				>
-					<Text style={styles.tempButton}>-</Text>
+					<Text style={styles.tempButtonText}>-</Text>
 				</TouchableOpacity>
 
-				<Text style={styles.temperature}>
-					{" "}
-					{temperature.toFixed(1)}{" "}
-				</Text>
+				<Text style={styles.temperature}>{temperature.toFixed(1)}</Text>
 
 				<TouchableOpacity
 					onPress={() => {
 						setTemperature((prevTemp) => prevTemp + 0.5);
 						handlePress(temperature + 0.5);
 					}}
+					style={styles.tempButton}
 				>
-					<Text style={styles.tempButton}>+</Text>
+					<Text style={styles.tempButtonText}>+</Text>
 				</TouchableOpacity>
 			</View>
 		</View>
@@ -235,30 +280,67 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
+		backgroundColor: "#f5f5f5",
+	},
+	thermostatCard: {
+		width: "90%",
+		padding: 20,
+		marginBottom: 20,
+		borderRadius: 10,
+		backgroundColor: "#fff",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 5,
+		elevation: 5,
 	},
 	centered: {
-		flex: 1,
 		justifyContent: "center",
 		alignItems: "center",
 	},
-	thermostatsList: {
-		marginBottom: 20,
+	thermostatContainer: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
 	},
 	thermostatId: {
 		fontSize: 18,
-		marginVertical: 5,
+	},
+	addButton: {
+		marginTop: 10,
+		padding: 10,
+		borderRadius: 5,
+		backgroundColor: "#4CAF50",
+	},
+	removeButton: {
+		padding: 10,
+		borderRadius: 5,
+		backgroundColor: "#f44336",
+	},
+	buttonText: {
+		color: "#fff",
+		fontWeight: "bold",
+		textAlign: "center",
 	},
 	tempControl: {
 		flexDirection: "row",
 		justifyContent: "center",
 		alignItems: "center",
+		marginTop: 20,
 	},
 	tempButton: {
-		fontSize: 40,
 		marginHorizontal: 20,
+		padding: 10,
+		borderRadius: 5,
+		backgroundColor: "#2196F3",
+	},
+	tempButtonText: {
+		color: "#fff",
+		fontSize: 20,
 	},
 	temperature: {
 		fontSize: 40,
+		fontWeight: "bold",
 	},
 });
 
