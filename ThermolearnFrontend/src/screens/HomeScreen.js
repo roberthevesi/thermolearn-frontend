@@ -153,42 +153,70 @@ const HomeScreen = ({ navigation }) => {
 	};
 
 	const handleUnpairThermostat = async (thermostatId) => {
-		try {
-			const userId = await AsyncStorage.getItem("userId");
-			if (!userId) {
-				Alert.alert("Error", "User ID not found in storage.");
-				return;
-			}
-
-			const token = await AsyncStorage.getItem("userToken");
-			console.log(
-				"Unpairing thermostat:",
-				thermostatId,
-				"for user:",
-				userId
-			);
-			const response = await api.post(
-				`/thermostat/unpair-thermostat`,
-				{ userId, thermostatId },
+		Alert.alert(
+			"Confirm Unpair",
+			"Are you sure you want to unpair this thermostat?",
+			[
 				{
-					headers: {
-						Authorization: `Bearer ${token}`,
-						"Content-Type": "application/json",
+					text: "Cancel",
+					style: "cancel",
+				},
+				{
+					text: "OK",
+					onPress: async () => {
+						try {
+							const userId = await AsyncStorage.getItem("userId");
+							if (!userId) {
+								Alert.alert(
+									"Error",
+									"User ID not found in storage."
+								);
+								return;
+							}
+
+							const token = await AsyncStorage.getItem(
+								"userToken"
+							);
+							console.log(
+								"Unpairing thermostat:",
+								thermostatId,
+								"for user:",
+								userId
+							);
+							const response = await api.post(
+								`/thermostat/unpair-thermostat`,
+								{ userId, thermostatId },
+								{
+									headers: {
+										Authorization: `Bearer ${token}`,
+										"Content-Type": "application/json",
+									},
+								}
+							);
+
+							if (response.status === 200) {
+								Alert.alert(
+									"Success",
+									"Thermostat unpaired successfully!"
+								);
+								fetchPairedThermostats();
+							} else {
+								Alert.alert(
+									"Error",
+									"Failed to unpair thermostat."
+								);
+							}
+						} catch (error) {
+							console.error("Failed to unpair thermostat", error);
+							Alert.alert(
+								"Error",
+								"Failed to unpair thermostat."
+							);
+						}
 					},
-				}
-			);
-
-			if (response.status === 200) {
-				Alert.alert("Success", "Thermostat unpaired successfully!");
-
-				fetchPairedThermostats();
-			} else {
-				Alert.alert("Error", "Failed to unpair thermostat.");
-			}
-		} catch (error) {
-			console.error("Failed to unpair thermostat", error);
-			Alert.alert("Error", "Failed to unpair thermostat.");
-		}
+				},
+			]
+		);
 	};
 
 	useEffect(() => {
