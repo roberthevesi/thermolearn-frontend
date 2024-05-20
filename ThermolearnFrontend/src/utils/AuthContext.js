@@ -2,6 +2,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./api"; // Assuming you have an API utility for backend calls
+import { jwtDecode } from "jwt-decode";
+import { decode as base64Decode } from "base-64";
+import { Alert } from "react-native";
 
 const AuthContext = createContext();
 
@@ -18,13 +21,38 @@ export const AuthProvider = ({ children }) => {
 		checkToken();
 	}, []);
 
+	if (typeof atob === "undefined") {
+		global.atob = (base64) => base64Decode(base64);
+	}
+
 	const checkToken = async () => {
 		try {
+			console.log("Checking token...");
 			const token = await AsyncStorage.getItem("userToken");
 			if (token) {
 				console.log("Token found:", token);
-				setUserToken(token);
-				setInitialRoute("Main");
+
+				const decodedToken = jwtDecode(token);
+
+				const currentTime = Date.now() / 1000; // convert to sec
+				if (decodedToken.exp && decodedToken.exp > currentTime) {
+					console.log("Token is valid");
+					setUserToken(token);
+					setInitialRoute("Main");
+				} else {
+					console.log("Token has expired");
+					await AsyncStorage.removeItem("userToken");
+					Alert.alert(
+						"Session Expired",
+						"Your session has expired. Please log in again.",
+						[
+							{
+								text: "OK",
+								onPress: () => setInitialRoute("Login"),
+							},
+						]
+					);
+				}
 			} else {
 				console.log("No token found");
 				setInitialRoute("Login");
@@ -46,9 +74,10 @@ export const AuthProvider = ({ children }) => {
 			const isAccountVerified = response.data.user.accountVerified;
 			if (isAccountVerified) {
 				const { token } = response.data;
+				console.log("Logging in with token:", token);
 				await AsyncStorage.setItem("userToken", token);
 				var userId = response.data.user.id.toString();
-				console.log("User ID:", userId);
+				// console.log("User ID:", userId);
 				setUserToken(token);
 				return true;
 			} else {
