@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }) => {
 					setInitialRoute("Main");
 				} else {
 					console.log("Token has expired");
-					await AsyncStorage.removeItem("userToken");
+					await AsyncStorage.clear();
 					Alert.alert(
 						"Session Expired",
 						"Your session has expired. Please log in again.",
@@ -77,7 +77,8 @@ export const AuthProvider = ({ children }) => {
 				console.log("Logging in with token:", token);
 				await AsyncStorage.setItem("userToken", token);
 				var userId = response.data.user.id.toString();
-				// console.log("User ID:", userId);
+				console.log("User ID:", userId);
+				await AsyncStorage.setItem("userId", userId);
 				setUserToken(token);
 				return true;
 			} else {
@@ -197,7 +198,7 @@ export const AuthProvider = ({ children }) => {
 		try {
 			var token = await AsyncStorage.getItem("userToken");
 			console.log("Logging out...", token);
-			await AsyncStorage.removeItem("userToken");
+			await AsyncStorage.clear();
 			setUserToken(null);
 
 			token = await AsyncStorage.getItem("userToken");

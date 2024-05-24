@@ -10,6 +10,15 @@ const HomeScreen = ({ navigation }) => {
 	const [thermostats, setThermostats] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const timeoutId = useRef(null);
+	const [thermostatId, setThermostatId] = useState(null);
+
+	useEffect(() => {
+		const fetchThermostatId = async () => {
+			const id = await AsyncStorage.getItem("thermostatId");
+			setThermostatId(id);
+		};
+		fetchThermostatId();
+	}, []);
 
 	const handlePress = async (temp) => {
 		if (timeoutId.current) {
@@ -60,6 +69,13 @@ const HomeScreen = ({ navigation }) => {
 					},
 				}
 			);
+			if (!response.data[0]) {
+				console.log("No thermostat found");
+			} else {
+				const thermostatId = response.data[0].thermostatId;
+				console.log("Thermostat ID:", thermostatId);
+				AsyncStorage.setItem("thermostatId", thermostatId);
+			}
 
 			setThermostats(response.data || []);
 		} catch (error) {
@@ -155,7 +171,7 @@ const HomeScreen = ({ navigation }) => {
 	const handleUnpairThermostat = async (thermostatId) => {
 		Alert.alert(
 			"Confirm Unpair",
-			"Are you sure you want to unpair this thermostat?",
+			"Are you sure you want to unpair this thermostat? This will also delete all your preferences.",
 			[
 				{
 					text: "Cancel",
@@ -193,6 +209,9 @@ const HomeScreen = ({ navigation }) => {
 									},
 								}
 							);
+
+							await AsyncStorage.removeItem("thermostatId");
+							setThermostatId(null);
 
 							if (response.status === 200) {
 								Alert.alert(
@@ -270,6 +289,12 @@ const HomeScreen = ({ navigation }) => {
 							}
 						>
 							<Text style={styles.buttonText}>X</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.removeButton}
+							onPress={() => navigation.navigate("Schedule")}
+						>
+							<Text style={styles.buttonText}>Schedule</Text>
 						</TouchableOpacity>
 					</View>
 				)}

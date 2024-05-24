@@ -57,7 +57,7 @@ const RegisterScreen = ({ navigation }) => {
 		<View style={styles.container}>
 			<TextInput
 				style={styles.input}
-				autoCapitalize="true"
+				autoCapitalize="words"
 				placeholder="First Name"
 				value={firstName}
 				onChangeText={setFirstName}
@@ -65,7 +65,7 @@ const RegisterScreen = ({ navigation }) => {
 
 			<TextInput
 				style={styles.input}
-				autoCapitalize="true"
+				autoCapitalize="words"
 				placeholder="Last Name"
 				value={lastName}
 				onChangeText={setLastName}

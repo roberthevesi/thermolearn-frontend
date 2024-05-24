@@ -6,6 +6,7 @@ import VerifyRegistrationCodeScreen from "../screens/VerifyRegistrationCodeScree
 import ForgottenPasswordScreen from "../screens/ForgottenPasswordScreen";
 import VerifyForgottenPasswordCodeScreen from "../screens/VerifyForgottenPasswordCodeScreen";
 import SetNewPasswordScreen from "../screens/SetNewPasswordScreen";
+import ScheduleScreen from "../screens/ScheduleScreen";
 
 import BottomTabNavigator from "../components/BottomTabNavigator";
 
@@ -48,6 +49,11 @@ function StackNavigator({ initialRouteName }) {
 			<Stack.Screen
 				name="Set New Password"
 				component={SetNewPasswordScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Schedule"
+				component={ScheduleScreen}
 				options={{ headerShown: true }}
 			/>
 		</Stack.Navigator>
