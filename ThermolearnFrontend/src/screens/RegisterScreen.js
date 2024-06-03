@@ -40,18 +40,24 @@ const RegisterScreen = ({ navigation }) => {
 		}
 	};
 
+	const validateEmail = (email) => {
+		const regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+		return regex.test(email);
+	};
+
 	const isFormValid = () =>
 		email.trim() !== "" &&
 		password.trim() !== "" &&
 		firstName.trim() !== "" &&
 		lastName.trim() !== "" &&
-		password === confirmPassword;
+		password === confirmPassword &&
+		validateEmail(email);
 
 	return (
 		<View style={styles.container}>
 			<TextInput
 				style={styles.input}
-				autoCapitalize="none"
+				autoCapitalize="words"
 				placeholder="First Name"
 				value={firstName}
 				onChangeText={setFirstName}
@@ -59,7 +65,7 @@ const RegisterScreen = ({ navigation }) => {
 
 			<TextInput
 				style={styles.input}
-				autoCapitalize="none"
+				autoCapitalize="words"
 				placeholder="Last Name"
 				value={lastName}
 				onChangeText={setLastName}

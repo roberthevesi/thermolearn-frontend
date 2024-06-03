@@ -15,7 +15,6 @@ const LoginScreen = ({ navigation }) => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const { login } = useAuth();
-	const { sendNewRegistrationCode } = useAuth();
 
 	const handleLogin = async () => {
 		try {
@@ -36,7 +35,13 @@ const LoginScreen = ({ navigation }) => {
 		}
 	};
 
-	const isFormValid = () => email.trim() !== "" && password.trim() !== "";
+	const validateEmail = (email) => {
+		const regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+		return regex.test(email);
+	};
+
+	const isFormValid = () =>
+		email.trim() !== "" && password.trim() !== "" && validateEmail(email);
 
 	return (
 		<View style={styles.container}>
