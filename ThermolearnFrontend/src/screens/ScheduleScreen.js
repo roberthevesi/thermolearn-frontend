@@ -124,7 +124,7 @@ const ScheduleScreen = ({ navigation }) => {
 							userId,
 							thermostatId,
 							day: entry.day.toUpperCase(),
-							startTime: entry.time + ":00", // HH:mm:ss
+							time: entry.time + ":00", // HH:mm:ss
 							desiredTemperature: entry.desiredTemperature,
 						},
 						{
@@ -177,23 +177,19 @@ const ScheduleScreen = ({ navigation }) => {
 							const token = await AsyncStorage.getItem(
 								"userToken"
 							);
-							await api.post(
-								"/thermostat/delete-schedule",
-								{
-									id: entry.id,
+							await api.delete("/thermostat/delete-schedule", {
+								headers: {
+									Authorization: `Bearer ${token}`,
+								},
+								data: {
 									userId,
 									thermostatId,
 									day: entry.day.toUpperCase(),
-									startTime: entry.time + ":00", // HH:mm:ss
+									time: entry.time + ":00", // HH:mm:ss
 									desiredTemperature:
 										entry.desiredTemperature,
 								},
-								{
-									headers: {
-										Authorization: `Bearer ${token}`,
-									},
-								}
-							);
+							});
 							setSchedule((prevSchedule) =>
 								prevSchedule.filter(
 									(item) => item.id !== entry.id

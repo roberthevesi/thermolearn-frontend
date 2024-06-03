@@ -76,10 +76,24 @@ export const AuthProvider = ({ children }) => {
 				const { token } = response.data;
 				console.log("Logging in with token:", token);
 				await AsyncStorage.setItem("userToken", token);
+				setUserToken(token);
+
 				var userId = response.data.user.id.toString();
 				console.log("User ID:", userId);
 				await AsyncStorage.setItem("userId", userId);
-				setUserToken(token);
+
+				var homeLatitude = response.data.user.homeLatitude.toString();
+				console.log("Home Latitude:", homeLatitude);
+				await AsyncStorage.setItem("homeLatitude", homeLatitude);
+
+				var homeLongitude = response.data.user.homeLongitude.toString();
+				console.log("Home Longitude:", homeLongitude);
+				await AsyncStorage.setItem("homeLongitude", homeLongitude);
+
+				var firstName = response.data.user.firstName;
+				console.log("First Name:", firstName);
+				await AsyncStorage.setItem("firstName", firstName);
+
 				return true;
 			} else {
 				await AsyncStorage.setItem("userEmail", email);

@@ -11,6 +11,13 @@ const HomeScreen = ({ navigation }) => {
 	const [loading, setLoading] = useState(true);
 	const timeoutId = useRef(null);
 	const [thermostatId, setThermostatId] = useState(null);
+	const [firstName, setFirstName] = useState("");
+	const [targetTemp, setTargetTemp] = useState(null);
+	const [ambientTemp, setAmbientTemp] = useState(null);
+	const [humidity, setHumidity] = useState(null);
+	const [heatingStatus, setHeatingStatus] = useState("OFF");
+	const updateTimeout = useRef(null);
+	const intervalRef = useRef(null);
 
 	useEffect(() => {
 		const fetchThermostatId = async () => {
@@ -20,34 +27,63 @@ const HomeScreen = ({ navigation }) => {
 		fetchThermostatId();
 	}, []);
 
-	const handlePress = async (temp) => {
-		if (timeoutId.current) {
-			clearTimeout(timeoutId.current);
+	useEffect(() => {
+		const fetchFirstName = async () => {
+			const name = await AsyncStorage.getItem("firstName");
+			setFirstName(name);
+		};
+		fetchFirstName();
+	}, []);
+
+	const fetchTemperatures = async () => {
+		try {
+			const token = await AsyncStorage.getItem("userToken");
+			const targetResponse = await api.get(
+				"/thermostat/get-target-temperature",
+				{
+					params: { thermostatId },
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+			console.log("Target temperature:", targetResponse.data);
+			setTargetTemp(targetResponse.data);
+
+			const statusResponse = await api.get(
+				"/thermostat/get-thermostat-status",
+				{
+					params: { thermostatId },
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+			console.log("response:", statusResponse.data);
+			setHeatingStatus(statusResponse.data.heatingStatus);
+			setAmbientTemp(statusResponse.data.ambientTemperature);
+			setHumidity(statusResponse.data.ambientHumidity);
+		} catch (error) {
+			console.error("Failed to fetch temperatures", error);
+			Alert.alert("Error", "Failed to fetch temperatures.");
 		}
+	};
 
-		timeoutId.current = setTimeout(async () => {
-			try {
-				const token = await AsyncStorage.getItem("userToken");
+	useEffect(() => {
+		if (thermostatId) {
+			fetchTemperatures();
+			intervalRef.current = setInterval(fetchTemperatures, 5000);
 
-				const response = await api.post(
-					`/demo?mode=manual&desiredTemp=${temp}`,
-					{},
-					{
-						headers: {
-							Authorization: `Bearer ${token}`,
-						},
-					}
-				);
-				Alert.alert(
-					"Success",
-					"Request succeeded with response: " +
-						JSON.stringify(response.data)
-				);
-			} catch (error) {
-				console.error("Request failed", error);
-				Alert.alert("Error", error.message || "Something went wrong");
-			}
-		}, 2000); // 2s delay
+			return () => clearInterval(intervalRef.current);
+		}
+	}, [thermostatId]);
+
+	const getBackgroundColor = (temperature) => {
+		if (temperature <= 15) {
+			return "#9ecdff";
+		} else if (temperature <= 20) {
+			return "#f5e4a2";
+		} else if (temperature <= 25) {
+			return "#f58236";
+		} else {
+			return "#ed4524";
+		}
 	};
 
 	const fetchPairedThermostats = async () => {
@@ -238,6 +274,43 @@ const HomeScreen = ({ navigation }) => {
 		);
 	};
 
+	const handleUpdateTemperature = async (newTemp) => {
+		if (updateTimeout.current) {
+			clearTimeout(updateTimeout.current);
+		}
+
+		setTargetTemp(newTemp);
+
+		updateTimeout.current = setTimeout(async () => {
+			try {
+				const token = await AsyncStorage.getItem("userToken");
+				console.log("Updating temperature to:", newTemp);
+				const response = await api.post(
+					`/thermostat/update-temperature`,
+					{
+						thermostatId: thermostatId,
+						temperature: newTemp,
+					},
+					{
+						headers: {
+							Authorization: `Bearer ${token}`,
+							"Content-Type": "application/json",
+						},
+					}
+				);
+
+				if (response.status === 200) {
+					Alert.alert("Success", "Temperature updated successfully!");
+				} else {
+					Alert.alert("Error", "Failed to update temperature.");
+				}
+			} catch (error) {
+				console.error("Failed to update temperature", error);
+				Alert.alert("Error", "Failed to update temperature.");
+			}
+		}, 2000);
+	};
+
 	useEffect(() => {
 		fetchPairedThermostats();
 	}, []);
@@ -262,9 +335,15 @@ const HomeScreen = ({ navigation }) => {
 		handleImagePicked(result);
 	};
 
+	const backgroundColor =
+		ambientTemp !== null ? getBackgroundColor(ambientTemp) : "#f5f5f5";
+
 	return (
-		<View style={styles.container}>
-			<View style={styles.thermostatCard}>
+		<View style={[styles.container, { backgroundColor }]}>
+			{firstName ? (
+				<Text style={styles.greeting}>Hello, {firstName}! 😊</Text>
+			) : null}
+			<View>
 				{thermostats.length === 0 ? (
 					<View style={styles.centered}>
 						<Text>No paired thermostats found.</Text>
@@ -277,51 +356,108 @@ const HomeScreen = ({ navigation }) => {
 					</View>
 				) : (
 					<View style={styles.thermostatContainer}>
-						<Text style={styles.thermostatId}>
-							Thermostat ID: {thermostats[0].thermostatId}
+						<View style={styles.temperatureOutsideCircle}>
+							<View style={styles.temperatureCircle}>
+								<View style={styles.temperatureColumn}>
+									<Text style={[styles.labelText]}>
+										Target
+									</Text>
+									<Text style={[styles.temperatureTextGrey]}>
+										{targetTemp}°C
+									</Text>
+								</View>
+								<View style={styles.temperatureColumn}>
+									<Text
+										style={[
+											styles.labelText,
+											{ color: backgroundColor },
+										]}
+									>
+										Ambient
+									</Text>
+									<Text
+										style={[
+											styles.temperatureText,
+											{ color: backgroundColor },
+										]}
+									>
+										{ambientTemp}°C
+									</Text>
+								</View>
+							</View>
+						</View>
+						<View style={styles.buttonContainer}>
+							<TouchableOpacity
+								style={styles.circleButton}
+								onPress={() =>
+									handleUpdateTemperature(
+										(targetTemp || 0) - 0.5
+									)
+								}
+							>
+								<Text style={styles.circleButtonText}>-</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.circleButton}
+								onPress={() =>
+									handleUpdateTemperature(
+										(targetTemp || 0) + 0.5
+									)
+								}
+							>
+								<Text style={styles.circleButtonText}>+</Text>
+							</TouchableOpacity>
+						</View>
+						<View style={styles.statusContainer}>
+							<Text style={styles.statusText}>
+								Heating status: {heatingStatus}{" "}
+								<View
+									style={[
+										styles.statusIndicator,
+										{
+											backgroundColor:
+												heatingStatus === "ON"
+													? "green"
+													: "grey",
+										},
+									]}
+								/>
+							</Text>
+						</View>
+						<Text style={styles.humidityText}>
+							Humidity:{" "}
+							{humidity !== null ? `${humidity}%` : "Loading..."}
 						</Text>
-						<TouchableOpacity
-							style={styles.removeButton}
-							onPress={() =>
-								handleUnpairThermostat(
-									thermostats[0].thermostatId
-								)
-							}
-						>
-							<Text style={styles.buttonText}>X</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={styles.removeButton}
-							onPress={() => navigation.navigate("Schedule")}
-						>
-							<Text style={styles.buttonText}>Schedule</Text>
-						</TouchableOpacity>
+						<View style={styles.bottomButtonsContainer}>
+							<View>
+								<TouchableOpacity
+									style={styles.translucentButton}
+									onPress={() =>
+										handleUnpairThermostat(
+											thermostats[0].thermostatId
+										)
+									}
+								>
+									<Text style={styles.translucentButtonText}>
+										Unpair Thermostat
+									</Text>
+								</TouchableOpacity>
+							</View>
+							<View>
+								<TouchableOpacity
+									style={styles.translucentButton}
+									onPress={() =>
+										navigation.navigate("Schedule")
+									}
+								>
+									<Text style={styles.translucentButtonText}>
+										Go To Schedule
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
 					</View>
 				)}
-			</View>
-
-			<View style={styles.tempControl}>
-				<TouchableOpacity
-					onPress={() => {
-						setTemperature((prevTemp) => prevTemp - 0.5);
-						handlePress(temperature - 0.5);
-					}}
-					style={styles.tempButton}
-				>
-					<Text style={styles.tempButtonText}>-</Text>
-				</TouchableOpacity>
-
-				<Text style={styles.temperature}>{temperature.toFixed(1)}</Text>
-
-				<TouchableOpacity
-					onPress={() => {
-						setTemperature((prevTemp) => prevTemp + 0.5);
-						handlePress(temperature + 0.5);
-					}}
-					style={styles.tempButton}
-				>
-					<Text style={styles.tempButtonText}>+</Text>
-				</TouchableOpacity>
 			</View>
 		</View>
 	);
@@ -333,31 +469,66 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
-		backgroundColor: "#f5f5f5",
 	},
-	thermostatCard: {
-		width: "90%",
-		padding: 20,
-		marginBottom: 20,
-		borderRadius: 10,
-		backgroundColor: "#fff",
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 5,
-		elevation: 5,
+	scheduleButton: {
+		position: "absolute",
+		top: 40,
+		right: 20,
+		padding: 10,
+		borderRadius: 5,
+		backgroundColor: "#4CAF50",
+	},
+	greeting: {
+		fontSize: 30,
+		margin: 10,
+		color: "#fff",
+		// position: "absolute",
 	},
 	centered: {
 		justifyContent: "center",
 		alignItems: "center",
 	},
 	thermostatContainer: {
-		flexDirection: "row",
-		justifyContent: "space-between",
+		justifyContent: "center",
 		alignItems: "center",
 	},
-	thermostatId: {
-		fontSize: 18,
+	temperatureCircle: {
+		width: 300,
+		height: 300,
+		borderRadius: 150,
+		justifyContent: "center",
+		alignItems: "center",
+		backgroundColor: "rgba(255, 255, 255, 0.8)",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 5,
+		elevation: 5,
+		flexDirection: "row",
+	},
+	temperatureOutsideCircle: {
+		width: 340,
+		height: 340,
+		borderRadius: 170,
+		justifyContent: "center",
+		alignItems: "center",
+		backgroundColor: "rgba(255, 255, 255, 0.2)",
+		margin: 10,
+	},
+	temperatureColumn: {
+		alignItems: "center",
+		marginHorizontal: 15,
+	},
+	temperatureText: {
+		fontSize: 40,
+	},
+	temperatureTextGrey: {
+		fontSize: 40,
+		color: "#666",
+	},
+	labelText: {
+		fontSize: 16,
+		color: "#666",
 	},
 	addButton: {
 		marginTop: 10,
@@ -366,6 +537,9 @@ const styles = StyleSheet.create({
 		backgroundColor: "#4CAF50",
 	},
 	removeButton: {
+		position: "absolute",
+		top: 10,
+		right: 10,
 		padding: 10,
 		borderRadius: 5,
 		backgroundColor: "#f44336",
@@ -374,6 +548,24 @@ const styles = StyleSheet.create({
 		color: "#fff",
 		fontWeight: "bold",
 		textAlign: "center",
+	},
+	buttonContainer: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		margin: 10,
+	},
+	circleButton: {
+		width: 80,
+		height: 80,
+		borderRadius: 40,
+		backgroundColor: "rgba(255, 255, 255, 0.3)",
+		justifyContent: "center",
+		alignItems: "center",
+		marginHorizontal: 20,
+	},
+	circleButtonText: {
+		color: "#fff",
+		fontSize: 48,
 	},
 	tempControl: {
 		flexDirection: "row",
@@ -394,6 +586,45 @@ const styles = StyleSheet.create({
 	temperature: {
 		fontSize: 40,
 		fontWeight: "bold",
+	},
+	bottomButtonsContainer: {
+		// bottom: 20,
+		flexDirection: "row",
+		justifyContent: "space-between",
+		margin: 10,
+	},
+	translucentButton: {
+		flex: 1,
+		marginHorizontal: 10,
+		padding: 10,
+		borderRadius: 5,
+		backgroundColor: "rgba(255, 255, 255, 0.3)",
+		alignItems: "center",
+	},
+	translucentButtonText: {
+		color: "#fff",
+		fontWeight: "bold",
+	},
+	statusContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		margin: 10,
+		marginBottom: -10,
+	},
+	statusText: {
+		fontSize: 18,
+		color: "#fff",
+	},
+	statusIndicator: {
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+		marginLeft: 5,
+	},
+	humidityText: {
+		fontSize: 18,
+		color: "#fff",
+		margin: 10,
 	},
 });
 
