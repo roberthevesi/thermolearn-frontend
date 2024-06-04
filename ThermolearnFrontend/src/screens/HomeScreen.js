@@ -1,23 +1,25 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { View, Alert, Text, TouchableOpacity, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
 import * as FileSystem from "expo-file-system";
+import { useAuth } from "../utils/AuthContext";
 
 const HomeScreen = ({ navigation }) => {
+	const { isLoggedIn } = useAuth();
 	const [temperature, setTemperature] = useState(22);
 	const [thermostats, setThermostats] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const timeoutId = useRef(null);
 	const [thermostatId, setThermostatId] = useState(null);
 	const [firstName, setFirstName] = useState("");
-	const [targetTemp, setTargetTemp] = useState(null);
-	const [ambientTemp, setAmbientTemp] = useState(null);
-	const [humidity, setHumidity] = useState(null);
-	const [heatingStatus, setHeatingStatus] = useState("OFF");
+	const [targetTemp, setTargetTemp] = useState("-");
+	const [ambientTemp, setAmbientTemp] = useState("-");
+	const [humidity, setHumidity] = useState("-");
+	const [heatingStatus, setHeatingStatus] = useState("-");
 	const updateTimeout = useRef(null);
-	const intervalRef = useRef(null);
+	const fetchInterval = useRef(null);
 
 	useEffect(() => {
 		const fetchThermostatId = async () => {
@@ -30,49 +32,51 @@ const HomeScreen = ({ navigation }) => {
 	useEffect(() => {
 		const fetchFirstName = async () => {
 			const name = await AsyncStorage.getItem("firstName");
-			setFirstName(name);
+			setFirstName(name || "-");
 		};
 		fetchFirstName();
 	}, []);
 
-	const fetchTemperatures = async () => {
-		try {
-			const token = await AsyncStorage.getItem("userToken");
-			const targetResponse = await api.get(
-				"/thermostat/get-target-temperature",
-				{
-					params: { thermostatId },
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-			console.log("Target temperature:", targetResponse.data);
-			setTargetTemp(targetResponse.data);
-
-			const statusResponse = await api.get(
-				"/thermostat/get-thermostat-status",
-				{
-					params: { thermostatId },
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-			console.log("response:", statusResponse.data);
-			setHeatingStatus(statusResponse.data.heatingStatus);
-			setAmbientTemp(statusResponse.data.ambientTemperature);
-			setHumidity(statusResponse.data.ambientHumidity);
-		} catch (error) {
-			console.error("Failed to fetch temperatures", error);
-			Alert.alert("Error", "Failed to fetch temperatures.");
-		}
-	};
-
 	useEffect(() => {
-		if (thermostatId) {
-			fetchTemperatures();
-			intervalRef.current = setInterval(fetchTemperatures, 5000);
+		const fetchTemperatures = async () => {
+			if (!thermostatId || !isLoggedIn) return; // Check if user is logged in
+			console.log("Fetching temperatures...");
+			try {
+				const token = await AsyncStorage.getItem("userToken");
 
-			return () => clearInterval(intervalRef.current);
+				const statusResponse = await api.get(
+					"/thermostat/get-thermostat-status",
+					{
+						params: { thermostatId },
+						headers: { Authorization: `Bearer ${token}` },
+					}
+				);
+				const { heatingStatus, ambientHumidity, ambientTemperature } =
+					statusResponse.data;
+				if (heatingStatus) setHeatingStatus(heatingStatus);
+				if (ambientHumidity) setHumidity(ambientHumidity);
+				if (ambientTemperature) setAmbientTemp(ambientTemperature);
+			} catch (error) {
+				console.error("Failed to fetch temperatures", error);
+				// Alert.alert("Error", "Failed to fetch temperatures.");
+			}
+		};
+
+		if (thermostatId && isLoggedIn) {
+			fetchTemperatures();
+			fetchInterval.current = setInterval(fetchTemperatures, 100000); // ms
+		} else {
+			console.log("No thermostatId or not logged in");
+			console.log("thermostatId", thermostatId);
+			console.log("isLoggedIn", isLoggedIn);
 		}
-	}, [thermostatId]);
+
+		return () => {
+			if (fetchInterval.current) {
+				clearInterval(fetchInterval.current);
+			}
+		};
+	}, [thermostatId, isLoggedIn]);
 
 	const getBackgroundColor = (temperature) => {
 		if (temperature <= 15) {
@@ -97,7 +101,7 @@ const HomeScreen = ({ navigation }) => {
 
 			const token = await AsyncStorage.getItem("userToken");
 			const response = await api.get(
-				`/user/get-user-paired-thermostats`,
+				"/user/get-user-paired-thermostats",
 				{
 					params: { userId },
 					headers: {
@@ -105,12 +109,30 @@ const HomeScreen = ({ navigation }) => {
 					},
 				}
 			);
+
 			if (!response.data[0]) {
 				console.log("No thermostat found");
 			} else {
 				const thermostatId = response.data[0].thermostatId;
 				console.log("Thermostat ID:", thermostatId);
-				AsyncStorage.setItem("thermostatId", thermostatId);
+				await AsyncStorage.setItem("thermostatId", thermostatId);
+				setThermostatId(thermostatId); // update state after setting AsyncStorage
+
+				try {
+					const targetResponse = await api.get(
+						"/thermostat/get-target-temperature",
+						{
+							params: { thermostatId },
+							headers: { Authorization: `Bearer ${token}` },
+						}
+					);
+
+					const formattedTemp = targetResponse.data.toFixed(1);
+					setTargetTemp(formattedTemp);
+				} catch (error) {
+					console.error("Failed to fetch temperatures", error);
+					// Alert.alert("Error", "Failed to fetch temperatures.");
+				}
 			}
 
 			setThermostats(response.data || []);
@@ -279,17 +301,19 @@ const HomeScreen = ({ navigation }) => {
 			clearTimeout(updateTimeout.current);
 		}
 
-		setTargetTemp(newTemp);
+		const formattedTemp = newTemp.toFixed(1);
+		setTargetTemp(formattedTemp);
 
 		updateTimeout.current = setTimeout(async () => {
 			try {
 				const token = await AsyncStorage.getItem("userToken");
-				console.log("Updating temperature to:", newTemp);
+				const id = await AsyncStorage.getItem("thermostatId");
+				console.log("Updating temperature to:", formattedTemp);
 				const response = await api.post(
-					`/thermostat/update-temperature`,
+					"/thermostat/update-temperature",
 					{
-						thermostatId: thermostatId,
-						temperature: newTemp,
+						thermostatId: id,
+						temperature: formattedTemp,
 					},
 					{
 						headers: {
@@ -300,7 +324,7 @@ const HomeScreen = ({ navigation }) => {
 				);
 
 				if (response.status === 200) {
-					Alert.alert("Success", "Temperature updated successfully!");
+					// Alert.alert("Success", "Temperature updated successfully!");
 				} else {
 					Alert.alert("Error", "Failed to update temperature.");
 				}
@@ -313,6 +337,11 @@ const HomeScreen = ({ navigation }) => {
 
 	useEffect(() => {
 		fetchPairedThermostats();
+		return () => {
+			if (fetchInterval.current) {
+				clearInterval(fetchInterval.current);
+			}
+		};
 	}, []);
 
 	const openImagePicker = async () => {
@@ -336,13 +365,17 @@ const HomeScreen = ({ navigation }) => {
 	};
 
 	const backgroundColor =
-		ambientTemp !== null ? getBackgroundColor(ambientTemp) : "#f5f5f5";
+		ambientTemp !== "-"
+			? getBackgroundColor(parseFloat(ambientTemp))
+			: "#f5f5f5";
 
 	return (
 		<View style={[styles.container, { backgroundColor }]}>
 			{firstName ? (
 				<Text style={styles.greeting}>Hello, {firstName}! 😊</Text>
-			) : null}
+			) : (
+				<Text style={styles.greeting}>-</Text>
+			)}
 			<View>
 				{thermostats.length === 0 ? (
 					<View style={styles.centered}>
@@ -391,7 +424,7 @@ const HomeScreen = ({ navigation }) => {
 								style={styles.circleButton}
 								onPress={() =>
 									handleUpdateTemperature(
-										(targetTemp || 0) - 0.5
+										(parseFloat(targetTemp) || 0) - 0.5
 									)
 								}
 							>
@@ -401,7 +434,7 @@ const HomeScreen = ({ navigation }) => {
 								style={styles.circleButton}
 								onPress={() =>
 									handleUpdateTemperature(
-										(targetTemp || 0) + 0.5
+										(parseFloat(targetTemp) || 0) + 0.5
 									)
 								}
 							>
@@ -425,8 +458,7 @@ const HomeScreen = ({ navigation }) => {
 							</Text>
 						</View>
 						<Text style={styles.humidityText}>
-							Humidity:{" "}
-							{humidity !== null ? `${humidity}%` : "Loading..."}
+							Humidity: {humidity !== "-" ? `${humidity}%` : "-"}
 						</Text>
 						<View style={styles.bottomButtonsContainer}>
 							<View>
