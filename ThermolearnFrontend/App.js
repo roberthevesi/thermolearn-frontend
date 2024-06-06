@@ -4,12 +4,12 @@ import RegisterScreen from "./src/screens/RegisterScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, StatusBar } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "./src/utils/AuthContext";
 import StackNavigator from "./src/utils/StackNavigator";
 import * as Location from "expo-location";
-import "./src/utils/BackgroundLocation"; // Ensure the path is correct for your project structure
+import "./src/utils/BackgroundLocation";
 
 const AppContent = () => {
 	const { initialRoute } = useAuth();
@@ -49,9 +49,17 @@ const AppContent = () => {
 		return <ActivityIndicator size="large" color="#0000ff" />;
 
 	return (
-		<NavigationContainer>
-			<StackNavigator initialRouteName={initialRoute} />
-		</NavigationContainer>
+		<>
+			{/* <StatusBar
+				animated={true}
+				backgroundColor="#61dafb"
+				barStyle={'dark-content'}
+			/> */}
+			<NavigationContainer>
+					<StackNavigator initialRouteName={initialRoute} />
+			</NavigationContainer>
+		</>
+		
 	);
 };
 

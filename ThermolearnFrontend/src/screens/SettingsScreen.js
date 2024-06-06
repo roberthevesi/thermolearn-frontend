@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useAuth } from "../utils/AuthContext";
 
 const SettingsScreen = ({ navigation }) => {
+	useFocusEffect(
+		React.useCallback(() => {
+			StatusBar.setBarStyle('dark-content');
+		}, [])
+	);
+
 	const { logout } = useAuth();
 
 	const handleLogout = async () => {
@@ -17,7 +24,13 @@ const SettingsScreen = ({ navigation }) => {
 	};
 
 	return (
-		<View style={styles.container}>
+		<>
+			<StatusBar
+				animated={true}
+				backgroundColor="#61dafb"
+				barStyle={'dark-content'}
+			/>
+			<View style={styles.container}>
 			<Text>abc</Text>
 			<AntDesign name="back" size={24} color="black" />
 
@@ -25,6 +38,8 @@ const SettingsScreen = ({ navigation }) => {
 				<Text style={styles.buttonText}>Logout</Text>
 			</TouchableOpacity>
 		</View>
+		</>
+		
 	);
 };
 

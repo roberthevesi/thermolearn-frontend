@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
-import { View, Alert, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Alert, Text, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
@@ -14,6 +14,7 @@ import { Dimensions } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect } from '@react-navigation/native';
 
 const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
 	const R = 6371;
@@ -37,6 +38,13 @@ const deg2rad = (deg) => {
 const HOME_RADIUS = 25; // meters
 
 const HomeScreen = ({ navigation }) => {
+	useFocusEffect(
+		React.useCallback(() => {
+			thermostats.length === 0 ? 
+			(StatusBar.setBarStyle('dark-content')) : (StatusBar.setBarStyle('light-content'))
+		}, [])
+	);
+
 	const { isLoggedIn } = useAuth();
 	const [temperature, setTemperature] = useState(22);
 	const [thermostats, setThermostats] = useState([]);
@@ -702,9 +710,7 @@ const HomeScreen = ({ navigation }) => {
 								</View>
 							</View>
 						</View>
-						<Text style={styles.updateText}>
-							Status updated at: {lastUpdate}
-						</Text>
+						
 						<View style={styles.buttonContainer}>
 							<TouchableOpacity
 								style={styles.circleButton}
@@ -788,6 +794,9 @@ const HomeScreen = ({ navigation }) => {
 								<Text style={styles.menuItemText}>Unpair</Text>
 							</TouchableOpacity>
 						</View>
+						<Text style={styles.updateText}>
+							Status updated at: {lastUpdate}
+						</Text>
 					</>
 				)}
 			</ScrollView>
@@ -1069,7 +1078,7 @@ const styles = StyleSheet.create({
 		marginVertical: 10,
 	},
 	updateText: {
-		fontSize: 14,
+		fontSize: 12,
 		color: "#fff",
 	},
 	menuContainer: {
