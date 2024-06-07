@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
-import { View, Alert, Text, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
+import {
+	View,
+	Alert,
+	Text,
+	TouchableOpacity,
+	StyleSheet,
+	StatusBar,
+	FlatList,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
@@ -14,7 +22,8 @@ import { Dimensions } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect } from '@react-navigation/native';
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useFocusEffect } from "@react-navigation/native";
 
 const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
 	const R = 6371;
@@ -40,8 +49,9 @@ const HOME_RADIUS = 25; // meters
 const HomeScreen = ({ navigation }) => {
 	useFocusEffect(
 		React.useCallback(() => {
-			thermostats.length === 0 ? 
-			(StatusBar.setBarStyle('dark-content')) : (StatusBar.setBarStyle('light-content'))
+			thermostats.length === 0
+				? StatusBar.setBarStyle("dark-content")
+				: StatusBar.setBarStyle("light-content");
 		}, [])
 	);
 
@@ -710,7 +720,7 @@ const HomeScreen = ({ navigation }) => {
 								</View>
 							</View>
 						</View>
-						
+
 						<View style={styles.buttonContainer}>
 							<TouchableOpacity
 								style={styles.circleButton}
@@ -758,8 +768,8 @@ const HomeScreen = ({ navigation }) => {
 								style={styles.menuItem}
 								onPress={() => navigation.navigate("Schedule")}
 							>
-								<MaterialIcons
-									name="schedule"
+								<AntDesign
+									name="calendar"
 									size={30}
 									color="#fff"
 								/>
@@ -781,19 +791,36 @@ const HomeScreen = ({ navigation }) => {
 							<TouchableOpacity
 								style={styles.menuItem}
 								onPress={() =>
+									navigation.navigate("Heating History")
+								}
+							>
+								<MaterialIcons
+									name="history"
+									size={30}
+									color="#fff"
+								/>
+								<Text style={styles.menuItemText}>
+									Heating History
+								</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.menuItem}
+								onPress={() =>
 									handleUnpairThermostat(
 										thermostats[0].thermostatId
 									)
 								}
 							>
-								<Ionicons
-									name="remove-circle-outline"
+								<FontAwesome
+									name="unlink"
 									size={30}
 									color="#fff"
 								/>
 								<Text style={styles.menuItemText}>Unpair</Text>
 							</TouchableOpacity>
 						</View>
+
 						<Text style={styles.updateText}>
 							Status updated at: {lastUpdate}
 						</Text>
@@ -856,9 +883,10 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		justifyContent: "center",
+		justifyContent: "flex-start",
 		alignItems: "center",
-		padding: 20,
+		padding: 0,
+		paddingTop: 50,
 	},
 	scheduleButton: {
 		position: "absolute",
@@ -1045,7 +1073,6 @@ const styles = StyleSheet.create({
 	},
 	scrollViewContainer: {
 		flexGrow: 1,
-		justifyContent: "center",
 		alignItems: "center",
 	},
 	mapContainer: {
@@ -1080,10 +1107,12 @@ const styles = StyleSheet.create({
 	updateText: {
 		fontSize: 12,
 		color: "#fff",
+		marginBottom: 10,
 	},
 	menuContainer: {
 		flexDirection: "row",
-		justifyContent: "space-around",
+		flexWrap: "wrap",
+		justifyContent: "space-between",
 		alignItems: "center",
 		margin: 20,
 		backgroundColor: "rgba(255, 255, 255, 0.3)", // Translucent background
@@ -1101,11 +1130,13 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 10,
+		width: "33%", // Each item takes 1/3 of the container width
 	},
 	menuItemText: {
 		color: "#fff",
 		marginTop: 5,
 		fontSize: 14,
+		textAlign: "center",
 	},
 });
 

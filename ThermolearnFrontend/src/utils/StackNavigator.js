@@ -7,6 +7,7 @@ import ForgottenPasswordScreen from "../screens/ForgottenPasswordScreen";
 import VerifyForgottenPasswordCodeScreen from "../screens/VerifyForgottenPasswordCodeScreen";
 import SetNewPasswordScreen from "../screens/SetNewPasswordScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
+import HeatingHistoryScreen from "../screens/HeatingHistoryScreen";
 
 import BottomTabNavigator from "../components/BottomTabNavigator";
 
@@ -54,6 +55,11 @@ function StackNavigator({ initialRouteName }) {
 			<Stack.Screen
 				name="Schedule"
 				component={ScheduleScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Heating History"
+				component={HeatingHistoryScreen}
 				options={{ headerShown: true }}
 			/>
 		</Stack.Navigator>

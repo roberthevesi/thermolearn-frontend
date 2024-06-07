@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import { useFocusEffect } from '@react-navigation/native';
-
+import {
+	View,
+	Text,
+	TouchableOpacity,
+	StyleSheet,
+	StatusBar,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../utils/AuthContext";
 
 const SettingsScreen = ({ navigation }) => {
 	useFocusEffect(
 		React.useCallback(() => {
-			StatusBar.setBarStyle('dark-content');
+			StatusBar.setBarStyle("dark-content");
 		}, [])
 	);
 
@@ -28,18 +32,14 @@ const SettingsScreen = ({ navigation }) => {
 			<StatusBar
 				animated={true}
 				backgroundColor="#61dafb"
-				barStyle={'dark-content'}
+				barStyle={"dark-content"}
 			/>
 			<View style={styles.container}>
-			<Text>abc</Text>
-			<AntDesign name="back" size={24} color="black" />
-
-			<TouchableOpacity style={styles.button} onPress={handleLogout}>
-				<Text style={styles.buttonText}>Logout</Text>
-			</TouchableOpacity>
-		</View>
+				<TouchableOpacity style={styles.button} onPress={handleLogout}>
+					<Text style={styles.buttonText}>Logout</Text>
+				</TouchableOpacity>
+			</View>
 		</>
-		
 	);
 };
 
