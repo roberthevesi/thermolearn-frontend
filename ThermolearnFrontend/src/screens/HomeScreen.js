@@ -1,23 +1,330 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Alert, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect, useRef, useContext } from "react";
+import {
+	View,
+	Alert,
+	Text,
+	TouchableOpacity,
+	StyleSheet,
+	StatusBar,
+	FlatList,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
 import * as FileSystem from "expo-file-system";
+import { useAuth } from "../utils/AuthContext";
+import MapView, { Marker } from "react-native-maps";
+import * as Location from "expo-location";
+import moment from "moment";
+import { ScrollView } from "react-native-gesture-handler";
+import { Modal } from "react-native";
+import { Dimensions } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import AntDesign from "@expo/vector-icons/AntDesign";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useFocusEffect } from "@react-navigation/native";
+
+const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+	const R = 6371;
+	const dLat = deg2rad(lat2 - lat1);
+	const dLon = deg2rad(lon2 - lon1);
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos(deg2rad(lat1)) *
+			Math.cos(deg2rad(lat2)) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	const d = R * c * 1000;
+	return d;
+};
+
+const deg2rad = (deg) => {
+	return deg * (Math.PI / 180);
+};
+
+const HOME_RADIUS = 25; // meters
 
 const HomeScreen = ({ navigation }) => {
+	useFocusEffect(
+		React.useCallback(() => {
+			thermostats.length === 0
+				? StatusBar.setBarStyle("dark-content")
+				: StatusBar.setBarStyle("light-content");
+		}, [])
+	);
+
+	const { isLoggedIn } = useAuth();
 	const [temperature, setTemperature] = useState(22);
 	const [thermostats, setThermostats] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const timeoutId = useRef(null);
 	const [thermostatId, setThermostatId] = useState(null);
 	const [firstName, setFirstName] = useState("");
-	const [targetTemp, setTargetTemp] = useState(null);
-	const [ambientTemp, setAmbientTemp] = useState(null);
-	const [humidity, setHumidity] = useState(null);
-	const [heatingStatus, setHeatingStatus] = useState("OFF");
+	const [targetTemp, setTargetTemp] = useState("-");
+	const [ambientTemp, setAmbientTemp] = useState("-");
+	const [humidity, setHumidity] = useState("-");
+	const [heatingStatus, setHeatingStatus] = useState("-");
 	const updateTimeout = useRef(null);
-	const intervalRef = useRef(null);
+	const fetchInterval = useRef(null);
+	const [lastUpdate, setLastUpdate] = useState("");
+
+	const [isTracking, setIsTracking] = useState(false);
+	const [homeLocation, setHomeLocation] = useState(null);
+	const [currentLocation, setCurrentLocation] = useState(null);
+	const [distanceToHome, setDistanceToHome] = useState(null);
+	const [showMap, setShowMap] = useState(false);
+	const [tempHomeLocation, setTempHomeLocation] = useState(null);
+	const [isAtHome, setIsAtHome] = useState(true); // Track if the user is at home or away
+
+	const [showModal, setShowModal] = useState(false);
+
+	useEffect(() => {
+		(async () => {
+			const { status: foregroundStatus } =
+				await Location.requestForegroundPermissionsAsync();
+			if (foregroundStatus !== "granted") {
+				console.log(
+					"Permission to access location in the foreground was denied"
+				);
+				return;
+			}
+
+			setIsTracking(true);
+
+			const homeLatitude = await AsyncStorage.getItem("homeLatitude");
+			const homeLongitude = await AsyncStorage.getItem("homeLongitude");
+
+			if (homeLatitude && homeLongitude) {
+				setHomeLocation({
+					latitude: parseFloat(homeLatitude),
+					longitude: parseFloat(homeLongitude),
+				});
+			}
+		})();
+	}, []);
+
+	useEffect(() => {
+		const getLocation = async () => {
+			const location = await Location.getCurrentPositionAsync({});
+			setCurrentLocation({
+				latitude: location.coords.latitude,
+				longitude: location.coords.longitude,
+				latitudeDelta: 0.01,
+				longitudeDelta: 0.01,
+			});
+			if (homeLocation) {
+				const distance = getDistanceFromLatLonInM(
+					location.coords.latitude,
+					location.coords.longitude,
+					homeLocation.latitude,
+					homeLocation.longitude
+				);
+				setDistanceToHome(distance);
+
+				setIsAtHome((prevIsAtHome) => {
+					if (distance > HOME_RADIUS && prevIsAtHome) {
+						logEvent("OUT");
+						Alert.alert(
+							"Distance Alert",
+							"You are more than 25 meters away from home."
+						);
+						return false;
+					} else if (distance <= HOME_RADIUS && !prevIsAtHome) {
+						logEvent("IN");
+						Alert.alert(
+							"Distance Alert",
+							"You are within 25 meters of home."
+						);
+						return true;
+					}
+					return prevIsAtHome;
+				});
+			}
+		};
+
+		const interval = setInterval(getLocation, 1000);
+		return () => clearInterval(interval);
+	}, [homeLocation]);
+
+	const updateUserCurrentLocation = async () => {
+		try {
+			if (!thermostatId || !isLoggedIn) return;
+			console.log("Updating user location...");
+			const userToken = await AsyncStorage.getItem("userToken");
+			const userId = await AsyncStorage.getItem("userId");
+
+			const distanceFromHome = ~~distanceToHome; // float to int LOL
+
+			const response = await api.post(
+				"/user/update-user-distance-from-home",
+				{
+					userId: parseInt(userId),
+					distanceFromHome: distanceFromHome,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${userToken}`,
+					},
+				}
+			);
+		} catch (error) {
+			console.error("Error logging event:", error);
+		}
+	};
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			updateUserCurrentLocation();
+		}, 120000); // 120000 ms = 2 min
+
+		return () => clearInterval(interval);
+	}, []);
+
+	useEffect(() => {
+		(async () => {
+			const { status: foregroundStatus } =
+				await Location.requestForegroundPermissionsAsync();
+			if (foregroundStatus !== "granted") {
+				console.log(
+					"Permission to access location in the foreground was denied"
+				);
+				return;
+			}
+
+			setIsTracking(true);
+
+			const homeLatitude = await AsyncStorage.getItem("homeLatitude");
+			const homeLongitude = await AsyncStorage.getItem("homeLongitude");
+
+			if (homeLatitude && homeLongitude) {
+				setHomeLocation({
+					latitude: parseFloat(homeLatitude),
+					longitude: parseFloat(homeLongitude),
+				});
+			}
+		})();
+	}, []);
+
+	useEffect(() => {
+		const getLocation = async () => {
+			const location = await Location.getCurrentPositionAsync({});
+			setCurrentLocation({
+				latitude: location.coords.latitude,
+				longitude: location.coords.longitude,
+				latitudeDelta: 0.01,
+				longitudeDelta: 0.01,
+			});
+			if (homeLocation) {
+				const distance = getDistanceFromLatLonInM(
+					location.coords.latitude,
+					location.coords.longitude,
+					homeLocation.latitude,
+					homeLocation.longitude
+				);
+				setDistanceToHome(distance);
+
+				setIsAtHome((prevIsAtHome) => {
+					if (distance > HOME_RADIUS && prevIsAtHome) {
+						logEvent("OUT");
+						Alert.alert(
+							"Distance Alert",
+							"You are more than 25 meters away from home."
+						);
+						return false;
+					} else if (distance <= HOME_RADIUS && !prevIsAtHome) {
+						logEvent("IN");
+						Alert.alert(
+							"Distance Alert",
+							"You are within 25 meters of home."
+						);
+						return true;
+					}
+					return prevIsAtHome;
+				});
+			}
+		};
+
+		const interval = setInterval(getLocation, 1000);
+		return () => clearInterval(interval);
+	}, [homeLocation]);
+
+	const handleMapPress = (event) => {
+		const { latitude, longitude } = event.nativeEvent.coordinate;
+		setTempHomeLocation({ latitude, longitude });
+	};
+
+	const handleConfirmLocation = async () => {
+		setHomeLocation(tempHomeLocation);
+		await AsyncStorage.setItem(
+			"homeLatitude",
+			tempHomeLocation.latitude.toString()
+		);
+		await AsyncStorage.setItem(
+			"homeLongitude",
+			tempHomeLocation.longitude.toString()
+		);
+		updateUserHomeLocation();
+		setShowModal(false);
+	};
+
+	const openModal = () => {
+		setShowModal(true);
+	};
+
+	const logEvent = async (eventType) => {
+		try {
+			const userId = await AsyncStorage.getItem("userId");
+			const userToken = await AsyncStorage.getItem("userToken");
+			const timestamp = moment().format("YYYY-MM-DD HH:mm:ss");
+
+			const response = await api.post(
+				"/log/save-log",
+				{
+					userId: parseInt(userId),
+					eventType,
+					timestamp,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${userToken}`,
+					},
+				}
+			);
+
+			console.log("Log event response:", response.data);
+		} catch (error) {
+			console.error("Error logging event:", error);
+		}
+	};
+
+	const updateUserHomeLocation = async (eventType) => {
+		try {
+			const userId = await AsyncStorage.getItem("userId");
+			const userToken = await AsyncStorage.getItem("userToken");
+			const homeLatitude = tempHomeLocation.latitude;
+			const homeLongitude = tempHomeLocation.longitude;
+
+			const response = await api.post(
+				"/user/update-user-home-location",
+				{
+					userId: parseInt(userId),
+					homeLatitude,
+					homeLongitude,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${userToken}`,
+					},
+				}
+			);
+
+			console.log("Log event response:", response.data);
+		} catch (error) {
+			console.error("Error logging event:", error);
+		}
+	};
 
 	useEffect(() => {
 		const fetchThermostatId = async () => {
@@ -30,49 +337,56 @@ const HomeScreen = ({ navigation }) => {
 	useEffect(() => {
 		const fetchFirstName = async () => {
 			const name = await AsyncStorage.getItem("firstName");
-			setFirstName(name);
+			setFirstName(name || "-");
 		};
 		fetchFirstName();
 	}, []);
 
-	const fetchTemperatures = async () => {
-		try {
-			const token = await AsyncStorage.getItem("userToken");
-			const targetResponse = await api.get(
-				"/thermostat/get-target-temperature",
-				{
-					params: { thermostatId },
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-			console.log("Target temperature:", targetResponse.data);
-			setTargetTemp(targetResponse.data);
-
-			const statusResponse = await api.get(
-				"/thermostat/get-thermostat-status",
-				{
-					params: { thermostatId },
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-			console.log("response:", statusResponse.data);
-			setHeatingStatus(statusResponse.data.heatingStatus);
-			setAmbientTemp(statusResponse.data.ambientTemperature);
-			setHumidity(statusResponse.data.ambientHumidity);
-		} catch (error) {
-			console.error("Failed to fetch temperatures", error);
-			Alert.alert("Error", "Failed to fetch temperatures.");
-		}
-	};
-
 	useEffect(() => {
-		if (thermostatId) {
-			fetchTemperatures();
-			intervalRef.current = setInterval(fetchTemperatures, 5000);
+		const fetchTemperatures = async () => {
+			if (!thermostatId || !isLoggedIn) return;
+			console.log("Fetching temperatures...");
+			try {
+				const token = await AsyncStorage.getItem("userToken");
+				console.log("Token:", token);
+				console.log("Thermostat ID:", thermostatId);
 
-			return () => clearInterval(intervalRef.current);
+				const statusResponse = await api.get(
+					"/thermostat/get-thermostat-status",
+					{
+						params: { thermostatId },
+						headers: { Authorization: `Bearer ${token}` },
+					}
+				);
+				const { heatingStatus, ambientHumidity, ambientTemperature } =
+					statusResponse.data;
+				if (heatingStatus) setHeatingStatus(heatingStatus);
+				if (ambientHumidity) setHumidity(ambientHumidity);
+				if (ambientTemperature) setAmbientTemp(ambientTemperature);
+
+				const currentTime = moment().format("YYYY-MM-DD HH:mm:ss");
+				setLastUpdate(currentTime);
+			} catch (error) {
+				console.error("Failed to fetch temperatures", error);
+				// Alert.alert("Error", "Failed to fetch temperatures.");
+			}
+		};
+
+		if (thermostatId && isLoggedIn) {
+			fetchTemperatures();
+			fetchInterval.current = setInterval(fetchTemperatures, 100000); // ms
+		} else {
+			console.log("No thermostatId or not logged in");
+			console.log("thermostatId", thermostatId);
+			console.log("isLoggedIn", isLoggedIn);
 		}
-	}, [thermostatId]);
+
+		return () => {
+			if (fetchInterval.current) {
+				clearInterval(fetchInterval.current);
+			}
+		};
+	}, [thermostatId, isLoggedIn]);
 
 	const getBackgroundColor = (temperature) => {
 		if (temperature <= 15) {
@@ -81,8 +395,10 @@ const HomeScreen = ({ navigation }) => {
 			return "#f5e4a2";
 		} else if (temperature <= 25) {
 			return "#f58236";
-		} else {
+		} else if (temperature <= 100) {
 			return "#ed4524";
+		} else {
+			return "#fff";
 		}
 	};
 
@@ -97,7 +413,7 @@ const HomeScreen = ({ navigation }) => {
 
 			const token = await AsyncStorage.getItem("userToken");
 			const response = await api.get(
-				`/user/get-user-paired-thermostats`,
+				"/user/get-user-paired-thermostats",
 				{
 					params: { userId },
 					headers: {
@@ -105,12 +421,30 @@ const HomeScreen = ({ navigation }) => {
 					},
 				}
 			);
+
 			if (!response.data[0]) {
 				console.log("No thermostat found");
 			} else {
 				const thermostatId = response.data[0].thermostatId;
 				console.log("Thermostat ID:", thermostatId);
-				AsyncStorage.setItem("thermostatId", thermostatId);
+				await AsyncStorage.setItem("thermostatId", thermostatId);
+				setThermostatId(thermostatId);
+
+				try {
+					const targetResponse = await api.get(
+						"/thermostat/get-target-temperature",
+						{
+							params: { thermostatId },
+							headers: { Authorization: `Bearer ${token}` },
+						}
+					);
+
+					const formattedTemp = targetResponse.data.toFixed(1);
+					setTargetTemp(formattedTemp);
+				} catch (error) {
+					console.error("Failed to fetch temperatures", error);
+					// Alert.alert("Error", "Failed to fetch temperatures.");
+				}
 			}
 
 			setThermostats(response.data || []);
@@ -173,12 +507,20 @@ const HomeScreen = ({ navigation }) => {
 	};
 
 	const handleQRCodeScanned = async (thermostatId) => {
+		console.log("Scanned QR code:", thermostatId);
 		try {
 			const userId = await AsyncStorage.getItem("userId");
 			if (!userId) {
 				Alert.alert("Error", "User ID not found in storage.");
 				return;
 			}
+
+			console.log(
+				"Pairing thermostat:",
+				thermostatId,
+				"for user:",
+				userId
+			);
 
 			const token = await AsyncStorage.getItem("userToken");
 			const response = await api.post(
@@ -192,15 +534,17 @@ const HomeScreen = ({ navigation }) => {
 				}
 			);
 
+			console.log("Response:", response);
+
 			if (response.status === 200) {
 				Alert.alert("Success", "Thermostat paired successfully!");
 				fetchPairedThermostats();
 			} else {
-				Alert.alert("Error", "Failed to pair thermostat.");
+				Alert.alert("Error", "Something went wrong. Please try again.");
 			}
 		} catch (error) {
 			console.error("Failed to pair thermostat", error);
-			Alert.alert("Error", "Failed to pair thermostat.");
+			Alert.alert("Error", "Something went wrong. Please try again.");
 		}
 	};
 
@@ -226,9 +570,8 @@ const HomeScreen = ({ navigation }) => {
 								return;
 							}
 
-							const token = await AsyncStorage.getItem(
-								"userToken"
-							);
+							const token =
+								await AsyncStorage.getItem("userToken");
 							console.log(
 								"Unpairing thermostat:",
 								thermostatId,
@@ -248,6 +591,10 @@ const HomeScreen = ({ navigation }) => {
 
 							await AsyncStorage.removeItem("thermostatId");
 							setThermostatId(null);
+							setAmbientTemp(null);
+							setHumidity(null);
+							setHeatingStatus(null);
+							setTargetTemp(null);
 
 							if (response.status === 200) {
 								Alert.alert(
@@ -279,17 +626,19 @@ const HomeScreen = ({ navigation }) => {
 			clearTimeout(updateTimeout.current);
 		}
 
-		setTargetTemp(newTemp);
+		const formattedTemp = newTemp.toFixed(1);
+		setTargetTemp(formattedTemp);
 
 		updateTimeout.current = setTimeout(async () => {
 			try {
 				const token = await AsyncStorage.getItem("userToken");
-				console.log("Updating temperature to:", newTemp);
+				const id = await AsyncStorage.getItem("thermostatId");
+				console.log("Updating temperature to:", formattedTemp);
 				const response = await api.post(
-					`/thermostat/update-temperature`,
+					"/thermostat/update-temperature",
 					{
-						thermostatId: thermostatId,
-						temperature: newTemp,
+						thermostatId: id,
+						temperature: formattedTemp,
 					},
 					{
 						headers: {
@@ -300,7 +649,7 @@ const HomeScreen = ({ navigation }) => {
 				);
 
 				if (response.status === 200) {
-					Alert.alert("Success", "Temperature updated successfully!");
+					// Alert.alert("Success", "Temperature updated successfully!");
 				} else {
 					Alert.alert("Error", "Failed to update temperature.");
 				}
@@ -313,6 +662,11 @@ const HomeScreen = ({ navigation }) => {
 
 	useEffect(() => {
 		fetchPairedThermostats();
+		return () => {
+			if (fetchInterval.current) {
+				clearInterval(fetchInterval.current);
+			}
+		};
 	}, []);
 
 	const openImagePicker = async () => {
@@ -336,62 +690,79 @@ const HomeScreen = ({ navigation }) => {
 	};
 
 	const backgroundColor =
-		ambientTemp !== null ? getBackgroundColor(ambientTemp) : "#f5f5f5";
+		ambientTemp !== "-"
+			? getBackgroundColor(parseFloat(ambientTemp))
+			: "#f5f5f5";
 
 	return (
 		<View style={[styles.container, { backgroundColor }]}>
-			{firstName ? (
-				<Text style={styles.greeting}>Hello, {firstName}! 😊</Text>
-			) : null}
-			<View>
+			<ScrollView contentContainerStyle={styles.scrollViewContainer}>
 				{thermostats.length === 0 ? (
-					<View style={styles.centered}>
-						<Text>No paired thermostats found.</Text>
-						<TouchableOpacity
-							style={styles.addButton}
-							onPress={openImagePicker}
-						>
-							<Text style={styles.buttonText}>Add</Text>
-						</TouchableOpacity>
-					</View>
+					<>
+						<Text style={styles.greetingNotPaired}>
+							Hello, {firstName ? firstName : "-"}! 🙂
+						</Text>
+						<View style={styles.noThermostatContainer}>
+							<Text style={styles.noThermostatText}>
+								Looks like you don't have any associated
+								thermostats. Add one now!
+							</Text>
+							<TouchableOpacity
+								style={styles.addButton}
+								onPress={openImagePicker}
+							>
+								<Text style={styles.buttonText}>
+									Add Thermostat
+								</Text>
+							</TouchableOpacity>
+						</View>
+					</>
 				) : (
-					<View style={styles.thermostatContainer}>
-						<View style={styles.temperatureOutsideCircle}>
-							<View style={styles.temperatureCircle}>
-								<View style={styles.temperatureColumn}>
-									<Text style={[styles.labelText]}>
-										Target
-									</Text>
-									<Text style={[styles.temperatureTextGrey]}>
-										{targetTemp}°C
-									</Text>
-								</View>
-								<View style={styles.temperatureColumn}>
-									<Text
-										style={[
-											styles.labelText,
-											{ color: backgroundColor },
-										]}
-									>
-										Ambient
-									</Text>
-									<Text
-										style={[
-											styles.temperatureText,
-											{ color: backgroundColor },
-										]}
-									>
-										{ambientTemp}°C
-									</Text>
+					<>
+						<Text style={styles.greeting}>
+							Hello, {firstName ? firstName : "-"}! 🙂
+						</Text>
+						<View style={styles.thermostatContainer}>
+							<View style={styles.temperatureOutsideCircle}>
+								<View style={styles.temperatureCircle}>
+									<View style={styles.temperatureColumn}>
+										<Text style={[styles.labelText]}>
+											Target
+										</Text>
+										<Text
+											style={[styles.temperatureTextGrey]}
+										>
+											{targetTemp}°C
+										</Text>
+									</View>
+									<View style={styles.temperatureColumn}>
+										<Text
+											style={[
+												styles.labelText,
+												{ color: backgroundColor },
+											]}
+										>
+											Ambient
+										</Text>
+										<Text
+											style={[
+												styles.temperatureText,
+												{ color: backgroundColor },
+											]}
+										>
+											{ambientTemp}°C
+										</Text>
+									</View>
 								</View>
 							</View>
 						</View>
+
 						<View style={styles.buttonContainer}>
 							<TouchableOpacity
 								style={styles.circleButton}
 								onPress={() =>
 									handleUpdateTemperature(
-										(targetTemp || 0) - 0.5
+										(parseFloat(targetTemp) || 0) - 0.5
 									)
 								}
 							>
@@ -401,7 +772,7 @@ const HomeScreen = ({ navigation }) => {
 								style={styles.circleButton}
 								onPress={() =>
 									handleUpdateTemperature(
-										(targetTemp || 0) + 0.5
+										(parseFloat(targetTemp) || 0) + 0.5
 									)
 								}
 							>
@@ -425,40 +796,122 @@ const HomeScreen = ({ navigation }) => {
 							</Text>
 						</View>
 						<Text style={styles.humidityText}>
-							Humidity:{" "}
-							{humidity !== null ? `${humidity}%` : "Loading..."}
+							Humidity: {humidity !== "-" ? `${humidity}%` : "-"}
 						</Text>
-						<View style={styles.bottomButtonsContainer}>
-							<View>
-								<TouchableOpacity
-									style={styles.translucentButton}
-									onPress={() =>
-										handleUnpairThermostat(
-											thermostats[0].thermostatId
-										)
-									}
-								>
-									<Text style={styles.translucentButtonText}>
-										Unpair Thermostat
-									</Text>
-								</TouchableOpacity>
-							</View>
-							<View>
-								<TouchableOpacity
-									style={styles.translucentButton}
-									onPress={() =>
-										navigation.navigate("Schedule")
-									}
-								>
-									<Text style={styles.translucentButtonText}>
-										Go To Schedule
-									</Text>
-								</TouchableOpacity>
-							</View>
+
+						<View style={styles.menuContainer}>
+							<TouchableOpacity
+								style={styles.menuItem}
+								onPress={() => navigation.navigate("Schedule")}
+							>
+								<AntDesign
+									name="calendar"
+									size={30}
+									color="#fff"
+								/>
+								<Text style={styles.menuItemText}>
+									Schedule
+								</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.menuItem}
+								onPress={openModal}
+							>
+								<AntDesign name="home" size={30} color="#fff" />
+								<Text style={styles.menuItemText}>
+									Home Location
+								</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.menuItem}
+								onPress={() =>
+									navigation.navigate("Heating History")
+								}
+							>
+								<MaterialIcons
+									name="history"
+									size={30}
+									color="#fff"
+								/>
+								<Text style={styles.menuItemText}>
+									Heating History
+								</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.menuItem}
+								onPress={() =>
+									handleUnpairThermostat(
+										thermostats[0].thermostatId
+									)
+								}
+							>
+								<FontAwesome
+									name="unlink"
+									size={30}
+									color="#fff"
+								/>
+								<Text style={styles.menuItemText}>Unpair</Text>
+							</TouchableOpacity>
 						</View>
-					</View>
+
+						<Text style={styles.updateText}>
+							Status updated at: {lastUpdate}
+						</Text>
+					</>
 				)}
-			</View>
+			</ScrollView>
+			<Modal visible={showModal} animationType="slide">
+				<View style={styles.modalContainer}>
+					{currentLocation && (
+						<MapView
+							style={styles.map}
+							initialRegion={currentLocation}
+							onPress={handleMapPress}
+						>
+							{currentLocation && (
+								<Marker
+									coordinate={currentLocation}
+									title="Your Location"
+									tracksViewChanges={false}
+								/>
+							)}
+							{homeLocation && (
+								<Marker
+									coordinate={homeLocation}
+									pinColor="blue"
+									title="Home Location"
+									tracksViewChanges={false}
+								/>
+							)}
+							{tempHomeLocation && (
+								<Marker
+									coordinate={tempHomeLocation}
+									pinColor="green"
+									title="Temporary Home Location"
+									tracksViewChanges={false}
+								/>
+							)}
+						</MapView>
+					)}
+					<TouchableOpacity
+						style={styles.confirmButton}
+						onPress={handleConfirmLocation}
+					>
+						<Text style={styles.buttonText}>
+							Confirm Home Location
+						</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={styles.cancelButton}
+						onPress={() => setShowModal(false)}
+					>
+						<Text style={styles.buttonText}>Cancel</Text>
+					</TouchableOpacity>
+				</View>
+			</Modal>
 		</View>
 	);
 };
@@ -466,9 +919,10 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		justifyContent: "center",
+		justifyContent: "flex-start",
 		alignItems: "center",
-		padding: 20,
+		padding: 0,
+		paddingTop: 50,
 	},
 	scheduleButton: {
 		position: "absolute",
@@ -479,10 +933,32 @@ const styles = StyleSheet.create({
 		backgroundColor: "#4CAF50",
 	},
 	greeting: {
-		fontSize: 30,
+		fontSize: 26,
 		margin: 10,
 		color: "#fff",
-		// position: "absolute",
+	},
+	greetingNotPaired: {
+		fontSize: 26,
+		margin: 10,
+		color: "#000",
+	},
+	noThermostatContainer: {
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 20,
+		backgroundColor: "#f5f5f5",
+		borderRadius: 10,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 5,
+		elevation: 5,
+	},
+	noThermostatText: {
+		fontSize: 16,
+		color: "#333",
+		textAlign: "center",
+		marginBottom: 10,
 	},
 	centered: {
 		justifyContent: "center",
@@ -532,7 +1008,7 @@ const styles = StyleSheet.create({
 	},
 	addButton: {
 		marginTop: 10,
-		padding: 10,
+		padding: 15,
 		borderRadius: 5,
 		backgroundColor: "#4CAF50",
 	},
@@ -588,10 +1064,13 @@ const styles = StyleSheet.create({
 		fontWeight: "bold",
 	},
 	bottomButtonsContainer: {
-		// bottom: 20,
+		position: "absolute",
+		bottom: 20,
 		flexDirection: "row",
 		justifyContent: "space-between",
 		margin: 10,
+		width: "100%",
+		paddingHorizontal: 20,
 	},
 	translucentButton: {
 		flex: 1,
@@ -600,6 +1079,8 @@ const styles = StyleSheet.create({
 		borderRadius: 5,
 		backgroundColor: "rgba(255, 255, 255, 0.3)",
 		alignItems: "center",
+		justifyContent: "center",
+		margin: 10,
 	},
 	translucentButtonText: {
 		color: "#fff",
@@ -625,6 +1106,73 @@ const styles = StyleSheet.create({
 		fontSize: 18,
 		color: "#fff",
 		margin: 10,
+	},
+	scrollViewContainer: {
+		flexGrow: 1,
+		alignItems: "center",
+	},
+	mapContainer: {
+		width: "100%",
+		height: 300,
+	},
+	map: {
+		flex: 1,
+	},
+	confirmButton: {
+		backgroundColor: "#28a745",
+		padding: 10,
+		borderRadius: 5,
+		marginVertical: 10,
+		alignSelf: "center",
+	},
+	modalContainer: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	map: {
+		width: Dimensions.get("window").width,
+		height: Dimensions.get("window").height / 2,
+	},
+	cancelButton: {
+		backgroundColor: "#d9534f",
+		padding: 10,
+		borderRadius: 5,
+		marginVertical: 10,
+	},
+	updateText: {
+		fontSize: 12,
+		color: "#fff",
+		marginBottom: 10,
+	},
+	menuContainer: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		justifyContent: "space-between",
+		alignItems: "center",
+		margin: 20,
+		backgroundColor: "rgba(255, 255, 255, 0.3)", // Translucent background
+		paddingVertical: 10,
+		borderRadius: 10,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.3,
+		shadowRadius: 5,
+		elevation: 5,
+		width: Dimensions.get("window").width * 0.8, // Make it almost as wide as the screen
+		alignSelf: "center",
+	},
+	menuItem: {
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 10,
+		width: "33%", // Each item takes 1/3 of the container width
+	},
+	menuItemText: {
+		color: "#fff",
+		marginTop: 5,
+		fontSize: 14,
+		textAlign: "center",
 	},
 });
 

@@ -1,5 +1,3 @@
-// WiFiScreen.js
-
 import React, { useState } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
 
@@ -9,13 +7,15 @@ const WiFiScreen = () => {
 
 	const sendCredentials = async () => {
 		try {
-			const response = await fetch("http://192.168.4.1/setup", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ ssid, password }),
-			});
+			const response = await fetch(
+				`http://192.168.1.100:5000/receive_credentials?ssid=${encodeURIComponent(ssid)}&password=${encodeURIComponent(password)}`,
+				{
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+					},
+				}
+			);
 
 			if (response.ok) {
 				Alert.alert("Success", "Credentials sent successfully");

@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
 	const [userToken, setUserToken] = useState(null);
 	const [initialRoute, setInitialRoute] = useState("Login");
 	const [loading, setLoading] = useState(true);
+	const [isLoggedIn, setIsLoggedIn] = useState(false);
 
 	useEffect(() => {
 		checkToken();
@@ -38,6 +39,7 @@ export const AuthProvider = ({ children }) => {
 				if (decodedToken.exp && decodedToken.exp > currentTime) {
 					console.log("Token is valid");
 					setUserToken(token);
+					setIsLoggedIn(true);
 					setInitialRoute("Main");
 				} else {
 					console.log("Token has expired");
@@ -93,6 +95,8 @@ export const AuthProvider = ({ children }) => {
 				var firstName = response.data.user.firstName;
 				console.log("First Name:", firstName);
 				await AsyncStorage.setItem("firstName", firstName);
+
+				setIsLoggedIn(true);
 
 				return true;
 			} else {
@@ -215,6 +219,8 @@ export const AuthProvider = ({ children }) => {
 			await AsyncStorage.clear();
 			setUserToken(null);
 
+			setIsLoggedIn(false);
+
 			token = await AsyncStorage.getItem("userToken");
 			console.log("Done logging out...", token);
 			setInitialRoute("Login");
@@ -236,6 +242,7 @@ export const AuthProvider = ({ children }) => {
 				verifyForgottenPasswordCode,
 				resetPassword,
 				logout,
+				isLoggedIn,
 			}}
 		>
 			{children}

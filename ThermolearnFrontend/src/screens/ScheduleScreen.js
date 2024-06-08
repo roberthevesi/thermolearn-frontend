@@ -371,7 +371,7 @@ const ScheduleScreen = ({ navigation }) => {
 								style={styles.slider}
 								minimumValue={14}
 								maximumValue={28}
-								step={1}
+								step={0.5}
 								value={tempValue}
 								onValueChange={(value) => setTempValue(value)}
 							/>
