@@ -148,6 +148,40 @@ const HomeScreen = ({ navigation }) => {
 		return () => clearInterval(interval);
 	}, [homeLocation]);
 
+	const updateUserCurrentLocation = async () => {
+		try {
+			if (!thermostatId || !isLoggedIn) return;
+			console.log("Updating user location...");
+			const userToken = await AsyncStorage.getItem("userToken");
+			const userId = await AsyncStorage.getItem("userId");
+
+			const distanceFromHome = ~~distanceToHome; // float to int LOL
+
+			const response = await api.post(
+				"/user/update-user-distance-from-home",
+				{
+					userId: parseInt(userId),
+					distanceFromHome: distanceFromHome,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${userToken}`,
+					},
+				}
+			);
+		} catch (error) {
+			console.error("Error logging event:", error);
+		}
+	};
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			updateUserCurrentLocation();
+		}, 120000); // 120000 ms = 2 min
+
+		return () => clearInterval(interval);
+	}, []);
+
 	useEffect(() => {
 		(async () => {
 			const { status: foregroundStatus } =
@@ -314,6 +348,8 @@ const HomeScreen = ({ navigation }) => {
 			console.log("Fetching temperatures...");
 			try {
 				const token = await AsyncStorage.getItem("userToken");
+				console.log("Token:", token);
+				console.log("Thermostat ID:", thermostatId);
 
 				const statusResponse = await api.get(
 					"/thermostat/get-thermostat-status",
