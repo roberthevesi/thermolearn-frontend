@@ -8,6 +8,10 @@ import VerifyForgottenPasswordCodeScreen from "../screens/VerifyForgottenPasswor
 import SetNewPasswordScreen from "../screens/SetNewPasswordScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import HeatingHistoryScreen from "../screens/HeatingHistoryScreen";
+import PairingScreen from "../screens/PairingScreen";
+import WiFiScreen from "../screens/WiFiScreen";
+import ConfirmConnectionScreen from "../screens/ConfirmConnectionScreen";
+import WiFiInstructionsScreen from "../screens/WiFiInstructionsScreen";
 
 import BottomTabNavigator from "../components/BottomTabNavigator";
 
@@ -60,6 +64,26 @@ function StackNavigator({ initialRouteName }) {
 			<Stack.Screen
 				name="Heating History"
 				component={HeatingHistoryScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Pair Thermostat"
+				component={PairingScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="WiFi Instructions"
+				component={WiFiInstructionsScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="WiFi Credentials"
+				component={WiFiScreen}
+				options={{ headerShown: true }}
+			/>
+			<Stack.Screen
+				name="Confirm Connection"
+				component={ConfirmConnectionScreen}
 				options={{ headerShown: true }}
 			/>
 		</Stack.Navigator>

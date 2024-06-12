@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, {
+	useState,
+	useEffect,
+	useRef,
+	useContext,
+	useCallback,
+} from "react";
 import {
 	View,
 	Alert,
@@ -21,7 +27,6 @@ import { Modal } from "react-native";
 import { Dimensions } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -44,6 +49,8 @@ const deg2rad = (deg) => {
 	return deg * (Math.PI / 180);
 };
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const HOME_RADIUS = 25; // meters
 
 const HomeScreen = ({ navigation }) => {
@@ -54,6 +61,11 @@ const HomeScreen = ({ navigation }) => {
 				: StatusBar.setBarStyle("light-content");
 		}, [])
 	);
+
+	const navigateToPairThermostat = () => {
+		console.log("Navigating to Pair Thermostat screen...");
+		navigation.navigate("Pair Thermostat");
+	};
 
 	const { isLoggedIn } = useAuth();
 	const [temperature, setTemperature] = useState(22);
@@ -336,57 +348,64 @@ const HomeScreen = ({ navigation }) => {
 
 	useEffect(() => {
 		const fetchFirstName = async () => {
+			await delay(1500);
 			const name = await AsyncStorage.getItem("firstName");
 			setFirstName(name || "-");
 		};
 		fetchFirstName();
 	}, []);
 
-	useEffect(() => {
-		const fetchTemperatures = async () => {
-			if (!thermostatId || !isLoggedIn) return;
-			console.log("Fetching temperatures...");
-			try {
-				const token = await AsyncStorage.getItem("userToken");
-				console.log("Token:", token);
-				console.log("Thermostat ID:", thermostatId);
+	useFocusEffect(
+		useCallback(() => {
+			const fetchTemperatures = async () => {
+				if (!thermostatId || !isLoggedIn) return;
+				console.log("Fetching temperatures...");
+				await delay(1500);
+				try {
+					const token = await AsyncStorage.getItem("userToken");
+					console.log("Token:", token);
+					console.log("Thermostat ID:", thermostatId);
 
-				const statusResponse = await api.get(
-					"/thermostat/get-thermostat-status",
-					{
-						params: { thermostatId },
-						headers: { Authorization: `Bearer ${token}` },
-					}
-				);
-				const { heatingStatus, ambientHumidity, ambientTemperature } =
-					statusResponse.data;
-				if (heatingStatus) setHeatingStatus(heatingStatus);
-				if (ambientHumidity) setHumidity(ambientHumidity);
-				if (ambientTemperature) setAmbientTemp(ambientTemperature);
+					const statusResponse = await api.get(
+						"/thermostat/get-thermostat-status",
+						{
+							params: { thermostatId },
+							headers: { Authorization: `Bearer ${token}` },
+						}
+					);
+					const {
+						heatingStatus,
+						ambientHumidity,
+						ambientTemperature,
+					} = statusResponse.data;
+					if (heatingStatus) setHeatingStatus(heatingStatus);
+					if (ambientHumidity) setHumidity(ambientHumidity);
+					if (ambientTemperature) setAmbientTemp(ambientTemperature);
 
-				const currentTime = moment().format("YYYY-MM-DD HH:mm:ss");
-				setLastUpdate(currentTime);
-			} catch (error) {
-				console.error("Failed to fetch temperatures", error);
-				// Alert.alert("Error", "Failed to fetch temperatures.");
+					const currentTime = moment().format("YYYY-MM-DD HH:mm:ss");
+					setLastUpdate(currentTime);
+				} catch (error) {
+					console.error("Failed to fetch temperatures", error);
+					// Alert.alert("Error", "Failed to fetch temperatures.");
+				}
+			};
+
+			if (thermostatId && isLoggedIn) {
+				fetchTemperatures();
+				fetchInterval.current = setInterval(fetchTemperatures, 100000); // ms
+			} else {
+				console.log("No thermostatId or not logged in");
+				console.log("thermostatId", thermostatId);
+				console.log("isLoggedIn", isLoggedIn);
 			}
-		};
 
-		if (thermostatId && isLoggedIn) {
-			fetchTemperatures();
-			fetchInterval.current = setInterval(fetchTemperatures, 100000); // ms
-		} else {
-			console.log("No thermostatId or not logged in");
-			console.log("thermostatId", thermostatId);
-			console.log("isLoggedIn", isLoggedIn);
-		}
-
-		return () => {
-			if (fetchInterval.current) {
-				clearInterval(fetchInterval.current);
-			}
-		};
-	}, [thermostatId, isLoggedIn]);
+			return () => {
+				if (fetchInterval.current) {
+					clearInterval(fetchInterval.current);
+				}
+			};
+		}, [thermostatId, isLoggedIn])
+	);
 
 	const getBackgroundColor = (temperature) => {
 		if (temperature <= 15) {
@@ -401,6 +420,12 @@ const HomeScreen = ({ navigation }) => {
 			return "#fff";
 		}
 	};
+
+	useFocusEffect(
+		React.useCallback(() => {
+			fetchPairedThermostats();
+		}, [])
+	);
 
 	const fetchPairedThermostats = async () => {
 		try {
@@ -426,11 +451,12 @@ const HomeScreen = ({ navigation }) => {
 				console.log("No thermostat found");
 			} else {
 				const thermostatId = response.data[0].thermostatId;
-				console.log("Thermostat ID:", thermostatId);
+				console.log("Getting target temp for:", thermostatId);
 				await AsyncStorage.setItem("thermostatId", thermostatId);
 				setThermostatId(thermostatId);
 
 				try {
+					console.log("TRYINGG...");
 					const targetResponse = await api.get(
 						"/thermostat/get-target-temperature",
 						{
@@ -439,10 +465,18 @@ const HomeScreen = ({ navigation }) => {
 						}
 					);
 
-					const formattedTemp = targetResponse.data.toFixed(1);
-					setTargetTemp(formattedTemp);
+					console.log("Target temp response:", targetResponse.data);
+
+					// Ensure the response is a valid number and format it
+					let temp = parseFloat(targetResponse.data);
+					if (isNaN(temp)) {
+						console.log("Invalid target temperature");
+					} else {
+						const formattedTemp = temp.toFixed(1);
+						setTargetTemp(formattedTemp);
+					}
 				} catch (error) {
-					console.error("Failed to fetch temperatures", error);
+					console.error("Failed to fetch target temperature", error);
 					// Alert.alert("Error", "Failed to fetch temperatures.");
 				}
 			}
@@ -709,7 +743,8 @@ const HomeScreen = ({ navigation }) => {
 							</Text>
 							<TouchableOpacity
 								style={styles.addButton}
-								onPress={openImagePicker}
+								// onPress={openImagePicker}
+								onPress={navigateToPairThermostat}
 							>
 								<Text style={styles.buttonText}>
 									Add Thermostat
@@ -1151,7 +1186,7 @@ const styles = StyleSheet.create({
 		justifyContent: "space-between",
 		alignItems: "center",
 		margin: 20,
-		backgroundColor: "rgba(255, 255, 255, 0.3)", // Translucent background
+		backgroundColor: "rgba(255, 255, 255, 0.3)",
 		paddingVertical: 10,
 		borderRadius: 10,
 		shadowColor: "#000",
@@ -1159,14 +1194,14 @@ const styles = StyleSheet.create({
 		shadowOpacity: 0.3,
 		shadowRadius: 5,
 		elevation: 5,
-		width: Dimensions.get("window").width * 0.8, // Make it almost as wide as the screen
+		width: Dimensions.get("window").width * 0.8,
 		alignSelf: "center",
 	},
 	menuItem: {
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 10,
-		width: "33%", // Each item takes 1/3 of the container width
+		width: "33%",
 	},
 	menuItemText: {
 		color: "#fff",

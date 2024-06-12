@@ -20,7 +20,7 @@ const LoginScreen = ({ navigation }) => {
 		try {
 			const isAccountVerified = await login(email, password);
 			if (isAccountVerified) {
-				navigation.navigate("Home");
+				navigation.navigate("Main");
 			} else {
 				navigation.navigate("Verify Account");
 			}
