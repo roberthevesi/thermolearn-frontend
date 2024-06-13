@@ -13,11 +13,10 @@ import {
 	StyleSheet,
 	StatusBar,
 	FlatList,
+	ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
 import api from "../utils/api";
-import * as FileSystem from "expo-file-system";
 import { useAuth } from "../utils/AuthContext";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
@@ -138,17 +137,17 @@ const HomeScreen = ({ navigation }) => {
 				setIsAtHome((prevIsAtHome) => {
 					if (distance > HOME_RADIUS && prevIsAtHome) {
 						logEvent("OUT");
-						Alert.alert(
-							"Distance Alert",
-							"You are more than 25 meters away from home."
-						);
+						// Alert.alert(
+						// 	"Distance Alert",
+						// 	"You are more than 25 meters away from home."
+						// );
 						return false;
 					} else if (distance <= HOME_RADIUS && !prevIsAtHome) {
 						logEvent("IN");
-						Alert.alert(
-							"Distance Alert",
-							"You are within 25 meters of home."
-						);
+						// Alert.alert(
+						// 	"Distance Alert",
+						// 	"You are within 25 meters of home."
+						// );
 						return true;
 					}
 					return prevIsAtHome;
@@ -387,6 +386,10 @@ const HomeScreen = ({ navigation }) => {
 				} catch (error) {
 					console.error("Failed to fetch temperatures", error);
 					// Alert.alert("Error", "Failed to fetch temperatures.");
+				} finally {
+					setLoading(false);
+
+					console.log("loading: ", loading);
 				}
 			};
 
@@ -490,97 +493,97 @@ const HomeScreen = ({ navigation }) => {
 		}
 	};
 
-	const handleImagePicked = async (result) => {
-		if (!result.cancelled && result.assets && result.assets.length > 0) {
-			const assetUri = result.assets[0].uri;
+	// const handleImagePicked = async (result) => {
+	// 	if (!result.cancelled && result.assets && result.assets.length > 0) {
+	// 		const assetUri = result.assets[0].uri;
 
-			try {
-				const base64Image = await FileSystem.readAsStringAsync(
-					assetUri,
-					{
-						encoding: FileSystem.EncodingType.Base64,
-					}
-				);
+	// 		try {
+	// 			const base64Image = await FileSystem.readAsStringAsync(
+	// 				assetUri,
+	// 				{
+	// 					encoding: FileSystem.EncodingType.Base64,
+	// 				}
+	// 			);
 
-				const formData = new FormData();
-				formData.append("file", {
-					uri: assetUri,
-					name: "photo.jpg",
-					type: "image/jpeg",
-				});
+	// 			const formData = new FormData();
+	// 			formData.append("file", {
+	// 				uri: assetUri,
+	// 				name: "photo.jpg",
+	// 				type: "image/jpeg",
+	// 			});
 
-				const response = await fetch(
-					"https://api.qrserver.com/v1/read-qr-code/",
-					{
-						method: "POST",
-						body: formData,
-						headers: {
-							"Content-Type": "multipart/form-data",
-						},
-					}
-				);
+	// 			const response = await fetch(
+	// 				"https://api.qrserver.com/v1/read-qr-code/",
+	// 				{
+	// 					method: "POST",
+	// 					body: formData,
+	// 					headers: {
+	// 						"Content-Type": "multipart/form-data",
+	// 					},
+	// 				}
+	// 			);
 
-				const data = await response.json();
+	// 			const data = await response.json();
 
-				if (
-					data &&
-					data.length > 0 &&
-					data[0].symbol.length > 0 &&
-					data[0].symbol[0].data
-				) {
-					const qrCodeData = data[0].symbol[0].data;
-					handleQRCodeScanned(qrCodeData);
-				} else {
-					Alert.alert("Error", "No QR code found in the image.");
-				}
-			} catch (error) {
-				console.error("Error decoding QR code", error);
-				Alert.alert("Error", "Failed to decode QR code.");
-			}
-		}
-	};
+	// 			if (
+	// 				data &&
+	// 				data.length > 0 &&
+	// 				data[0].symbol.length > 0 &&
+	// 				data[0].symbol[0].data
+	// 			) {
+	// 				const qrCodeData = data[0].symbol[0].data;
+	// 				handleQRCodeScanned(qrCodeData);
+	// 			} else {
+	// 				Alert.alert("Error", "No QR code found in the image.");
+	// 			}
+	// 		} catch (error) {
+	// 			console.error("Error decoding QR code", error);
+	// 			Alert.alert("Error", "Failed to decode QR code.");
+	// 		}
+	// 	}
+	// };
 
-	const handleQRCodeScanned = async (thermostatId) => {
-		console.log("Scanned QR code:", thermostatId);
-		try {
-			const userId = await AsyncStorage.getItem("userId");
-			if (!userId) {
-				Alert.alert("Error", "User ID not found in storage.");
-				return;
-			}
+	// const handleQRCodeScanned = async (thermostatId) => {
+	// 	console.log("Scanned QR code:", thermostatId);
+	// 	try {
+	// 		const userId = await AsyncStorage.getItem("userId");
+	// 		if (!userId) {
+	// 			Alert.alert("Error", "User ID not found in storage.");
+	// 			return;
+	// 		}
 
-			console.log(
-				"Pairing thermostat:",
-				thermostatId,
-				"for user:",
-				userId
-			);
+	// 		console.log(
+	// 			"Pairing thermostat:",
+	// 			thermostatId,
+	// 			"for user:",
+	// 			userId
+	// 		);
 
-			const token = await AsyncStorage.getItem("userToken");
-			const response = await api.post(
-				`/thermostat/pair-thermostat`,
-				{ userId, thermostatId },
-				{
-					headers: {
-						Authorization: `Bearer ${token}`,
-						"Content-Type": "application/json",
-					},
-				}
-			);
+	// 		const token = await AsyncStorage.getItem("userToken");
+	// 		const response = await api.post(
+	// 			`/thermostat/pair-thermostat`,
+	// 			{ userId, thermostatId },
+	// 			{
+	// 				headers: {
+	// 					Authorization: `Bearer ${token}`,
+	// 					"Content-Type": "application/json",
+	// 				},
+	// 			}
+	// 		);
 
-			console.log("Response:", response);
+	// 		console.log("Response:", response);
 
-			if (response.status === 200) {
-				Alert.alert("Success", "Thermostat paired successfully!");
-				fetchPairedThermostats();
-			} else {
-				Alert.alert("Error", "Something went wrong. Please try again.");
-			}
-		} catch (error) {
-			console.error("Failed to pair thermostat", error);
-			Alert.alert("Error", "Something went wrong. Please try again.");
-		}
-	};
+	// 		if (response.status === 200) {
+	// 			Alert.alert("Success", "Thermostat paired successfully!");
+	// 			fetchPairedThermostats();
+	// 		} else {
+	// 			Alert.alert("Error", "Something went wrong. Please try again.");
+	// 		}
+	// 	} catch (error) {
+	// 		console.error("Failed to pair thermostat", error);
+	// 		Alert.alert("Error", "Something went wrong. Please try again.");
+	// 	}
+	// };
 
 	const handleUnpairThermostat = async (thermostatId) => {
 		Alert.alert(
@@ -703,30 +706,38 @@ const HomeScreen = ({ navigation }) => {
 		};
 	}, []);
 
-	const openImagePicker = async () => {
-		const { status } =
-			await ImagePicker.requestMediaLibraryPermissionsAsync();
-		if (status !== "granted") {
-			Alert.alert(
-				"Permission Denied",
-				"We need permission to access your photo library"
-			);
-			return;
-		}
+	// const openImagePicker = async () => {
+	// 	const { status } =
+	// 		await ImagePicker.requestMediaLibraryPermissionsAsync();
+	// 	if (status !== "granted") {
+	// 		Alert.alert(
+	// 			"Permission Denied",
+	// 			"We need permission to access your photo library"
+	// 		);
+	// 		return;
+	// 	}
 
-		const result = await ImagePicker.launchImageLibraryAsync({
-			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsEditing: false,
-			quality: 1,
-		});
+	// 	const result = await ImagePicker.launchImageLibraryAsync({
+	// 		mediaTypes: ImagePicker.MediaTypeOptions.Images,
+	// 		allowsEditing: false,
+	// 		quality: 1,
+	// 	});
 
-		handleImagePicked(result);
-	};
+	// 	handleImagePicked(result);
+	// };
 
 	const backgroundColor =
 		ambientTemp !== "-"
 			? getBackgroundColor(parseFloat(ambientTemp))
 			: "#f5f5f5";
+
+	if (loading) {
+		return (
+			<View style={styles.fullScreenLoading}>
+				<ActivityIndicator size="large" color="#000" />
+			</View>
+		);
+	}
 
 	return (
 		<View style={[styles.container, { backgroundColor }]}>
@@ -774,7 +785,9 @@ const HomeScreen = ({ navigation }) => {
 										<Text
 											style={[
 												styles.labelText,
-												{ color: backgroundColor },
+												{
+													color: backgroundColor,
+												},
 											]}
 										>
 											Ambient
@@ -782,7 +795,9 @@ const HomeScreen = ({ navigation }) => {
 										<Text
 											style={[
 												styles.temperatureText,
-												{ color: backgroundColor },
+												{
+													color: backgroundColor,
+												},
 											]}
 										>
 											{ambientTemp}°C
@@ -952,6 +967,17 @@ const HomeScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+	fullScreenLoading: {
+		position: "absolute",
+		left: 0,
+		right: 0,
+		top: 0,
+		bottom: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "#FFFFFF",
+		zIndex: 1,
+	},
 	container: {
 		flex: 1,
 		justifyContent: "flex-start",
@@ -1063,7 +1089,7 @@ const styles = StyleSheet.create({
 	buttonContainer: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		margin: 10,
+		margin: 5,
 	},
 	circleButton: {
 		width: 80,
@@ -1082,7 +1108,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "center",
 		alignItems: "center",
-		marginTop: 20,
+		marginTop: 10,
 	},
 	tempButton: {
 		marginHorizontal: 20,
@@ -1092,7 +1118,7 @@ const styles = StyleSheet.create({
 	},
 	tempButtonText: {
 		color: "#fff",
-		fontSize: 20,
+		fontSize: 10,
 	},
 	temperature: {
 		fontSize: 40,
@@ -1124,7 +1150,7 @@ const styles = StyleSheet.create({
 	statusContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		margin: 10,
+		margin: 5,
 		marginBottom: -10,
 	},
 	statusText: {
