@@ -10,8 +10,15 @@ import {
 import { LineChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../utils/api";
+import { useFocusEffect } from "@react-navigation/native";
 
 const HeatingHistoryScreen = () => {
+	useFocusEffect(
+		React.useCallback(() => {
+			StatusBar.setBarStyle("dark-content");
+		}, [])
+	);
+
 	const [data, setData] = useState([]);
 	const [loading, setLoading] = useState(true);
 

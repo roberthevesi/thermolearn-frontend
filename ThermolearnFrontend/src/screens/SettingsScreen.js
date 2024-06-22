@@ -50,13 +50,15 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	button: {
-		backgroundColor: "#007BFF",
-		padding: 10,
+		backgroundColor: "tomato",
+		paddingVertical: 15,
+		paddingHorizontal: 30,
 		borderRadius: 5,
-		marginVertical: 10,
+		alignItems: "center",
 	},
 	buttonText: {
-		color: "#FFFFFF",
+		color: "white",
+		fontSize: 18,
 	},
 });
 

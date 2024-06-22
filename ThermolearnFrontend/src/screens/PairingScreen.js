@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 20,
 	},
 	selectButton: {
-		backgroundColor: "#007BFF",
+		backgroundColor: "tomato",
 		paddingVertical: 15,
 		paddingHorizontal: 30,
 		borderRadius: 5,

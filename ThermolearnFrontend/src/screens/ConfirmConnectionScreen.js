@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import api from "../utils/api";
@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const ConfirmConnectionScreen = ({ route }) => {
 	const { fingerprint } = route.params;
 	const [receivedFingerprint, setReceivedFingerprint] = useState("");
+	const [buttonClicked, setButtonClicked] = useState(false);
 	const navigation = useNavigation();
 
 	const pairThermostat = async () => {
@@ -52,6 +53,7 @@ const ConfirmConnectionScreen = ({ route }) => {
 	};
 
 	const confirmConnection = async () => {
+		setButtonClicked(true);
 		const checkFingerprint = async () => {
 			try {
 				const token = await AsyncStorage.getItem("userToken");
@@ -126,15 +128,15 @@ const ConfirmConnectionScreen = ({ route }) => {
 				your local WiFi network and come back.
 			</Text>
 			<TouchableOpacity
-				style={styles.confirmButton}
-				onPress={confirmConnection}
+				style={[
+					styles.confirmButton,
+					buttonClicked && styles.disabledButton,
+				]}
+				onPress={!buttonClicked ? confirmConnection : null}
+				disabled={buttonClicked}
 			>
 				<Text style={styles.confirmButtonText}>Confirm Connection</Text>
 			</TouchableOpacity>
-			<Text style={styles.fingerprintLabel}>Expected Fingerprint:</Text>
-			<Text style={styles.fingerprint}>{fingerprint}</Text>
-			<Text style={styles.fingerprintLabel}>Received Fingerprint:</Text>
-			<Text style={styles.fingerprint}>{receivedFingerprint}</Text>
 		</View>
 	);
 };
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 20,
 	},
 	confirmButton: {
-		backgroundColor: "#007BFF",
+		backgroundColor: "tomato",
 		paddingVertical: 15,
 		paddingHorizontal: 30,
 		borderRadius: 5,
@@ -174,17 +176,8 @@ const styles = StyleSheet.create({
 		color: "white",
 		fontSize: 18,
 	},
-	fingerprintLabel: {
-		fontSize: 16,
-		marginTop: 20,
-		textAlign: "center",
-		color: "#333",
-	},
-	fingerprint: {
-		fontSize: 16,
-		textAlign: "center",
-		color: "#555",
-		marginBottom: 20,
+	disabledButton: {
+		backgroundColor: "gray",
 	},
 });
 

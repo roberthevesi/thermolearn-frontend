@@ -8,6 +8,7 @@ import {
 	Modal,
 	Button,
 	Alert,
+	StatusBar,
 } from "react-native";
 import CheckBox from "expo-checkbox";
 import RNPickerSelect from "react-native-picker-select";
@@ -15,6 +16,7 @@ import Slider from "@react-native-community/slider";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import api from "../utils/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 
 const DAYS_OF_WEEK = [
 	"Monday",
@@ -27,6 +29,12 @@ const DAYS_OF_WEEK = [
 ];
 
 const ScheduleScreen = ({ navigation }) => {
+	useFocusEffect(
+		React.useCallback(() => {
+			StatusBar.setBarStyle("dark-content");
+		}, [])
+	);
+
 	const [schedule, setSchedule] = useState([]);
 	const [modalVisible, setModalVisible] = useState(false);
 	const [selectedDays, setSelectedDays] = useState([]);
@@ -174,9 +182,8 @@ const ScheduleScreen = ({ navigation }) => {
 					style: "destructive",
 					onPress: async () => {
 						try {
-							const token = await AsyncStorage.getItem(
-								"userToken"
-							);
+							const token =
+								await AsyncStorage.getItem("userToken");
 							await api.delete("/thermostat/delete-schedule", {
 								headers: {
 									Authorization: `Bearer ${token}`,
