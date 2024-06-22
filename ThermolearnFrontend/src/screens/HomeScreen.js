@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../utils/api";
 import { useAuth } from "../utils/AuthContext";
 import MapView, { Marker } from "react-native-maps";
+import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 import * as Location from "expo-location";
 import moment from "moment";
 import { ScrollView } from "react-native-gesture-handler";
@@ -53,14 +54,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const HOME_RADIUS = 25; // meters
 
 const HomeScreen = ({ navigation }) => {
-	useFocusEffect(
-		React.useCallback(() => {
-			thermostats.length === 0
-				? StatusBar.setBarStyle("dark-content")
-				: StatusBar.setBarStyle("light-content");
-		}, [])
-	);
-
 	const navigateToPairThermostat = () => {
 		console.log("Navigating to Pair Thermostat screen...");
 		navigation.navigate("Pair Thermostat");
@@ -87,30 +80,31 @@ const HomeScreen = ({ navigation }) => {
 	const [distanceToHome, setDistanceToHome] = useState(null);
 	const [showMap, setShowMap] = useState(false);
 	const [tempHomeLocation, setTempHomeLocation] = useState(null);
-	const [isAtHome, setIsAtHome] = useState(true); // Track if the user is at home or away
+	const [isAtHome, setIsAtHome] = useState(true);
 
 	const [showModal, setShowModal] = useState(false);
 
+	useFocusEffect(
+		React.useCallback(() => {
+			console.log("thermostats.lenght: ", thermostats.length);
+			if (showModal || thermostats.length === 0) {
+				StatusBar.setBarStyle("dark-content");
+			} else {
+				StatusBar.setBarStyle("light-content");
+			}
+		}, [showModal])
+	);
+
 	useEffect(() => {
 		(async () => {
-			const { status: foregroundStatus } =
-				await Location.requestForegroundPermissionsAsync();
-			if (foregroundStatus !== "granted") {
-				console.log(
-					"Permission to access location in the foreground was denied"
-				);
-				return;
-			}
-
-			setIsTracking(true);
-
 			const homeLatitude = await AsyncStorage.getItem("homeLatitude");
 			const homeLongitude = await AsyncStorage.getItem("homeLongitude");
-
 			if (homeLatitude && homeLongitude) {
 				setHomeLocation({
 					latitude: parseFloat(homeLatitude),
 					longitude: parseFloat(homeLongitude),
+					latitudeDelta: 0.01,
+					longitudeDelta: 0.01,
 				});
 			}
 		})();
@@ -193,76 +187,17 @@ const HomeScreen = ({ navigation }) => {
 		return () => clearInterval(interval);
 	}, []);
 
-	useEffect(() => {
-		(async () => {
-			const { status: foregroundStatus } =
-				await Location.requestForegroundPermissionsAsync();
-			if (foregroundStatus !== "granted") {
-				console.log(
-					"Permission to access location in the foreground was denied"
-				);
-				return;
-			}
+	const handleMapPress = (data) => {
+		let latitude, longitude;
 
-			setIsTracking(true);
+		if (data.nativeEvent && data.nativeEvent.coordinate) {
+			latitude = data.nativeEvent.coordinate.latitude;
+			longitude = data.nativeEvent.coordinate.longitude;
+		} else {
+			latitude = data.latitude;
+			longitude = data.longitude;
+		}
 
-			const homeLatitude = await AsyncStorage.getItem("homeLatitude");
-			const homeLongitude = await AsyncStorage.getItem("homeLongitude");
-
-			if (homeLatitude && homeLongitude) {
-				setHomeLocation({
-					latitude: parseFloat(homeLatitude),
-					longitude: parseFloat(homeLongitude),
-				});
-			}
-		})();
-	}, []);
-
-	useEffect(() => {
-		const getLocation = async () => {
-			const location = await Location.getCurrentPositionAsync({});
-			setCurrentLocation({
-				latitude: location.coords.latitude,
-				longitude: location.coords.longitude,
-				latitudeDelta: 0.01,
-				longitudeDelta: 0.01,
-			});
-			if (homeLocation) {
-				const distance = getDistanceFromLatLonInM(
-					location.coords.latitude,
-					location.coords.longitude,
-					homeLocation.latitude,
-					homeLocation.longitude
-				);
-				setDistanceToHome(distance);
-
-				setIsAtHome((prevIsAtHome) => {
-					if (distance > HOME_RADIUS && prevIsAtHome) {
-						logEvent("OUT");
-						Alert.alert(
-							"Distance Alert",
-							"You are more than 25 meters away from home."
-						);
-						return false;
-					} else if (distance <= HOME_RADIUS && !prevIsAtHome) {
-						logEvent("IN");
-						Alert.alert(
-							"Distance Alert",
-							"You are within 25 meters of home."
-						);
-						return true;
-					}
-					return prevIsAtHome;
-				});
-			}
-		};
-
-		const interval = setInterval(getLocation, 1000);
-		return () => clearInterval(interval);
-	}, [homeLocation]);
-
-	const handleMapPress = (event) => {
-		const { latitude, longitude } = event.nativeEvent.coordinate;
 		setTempHomeLocation({ latitude, longitude });
 	};
 
@@ -278,6 +213,13 @@ const HomeScreen = ({ navigation }) => {
 		);
 		updateUserHomeLocation();
 		setShowModal(false);
+		setCurrentLocation({
+			latitude: tempHomeLocation.latitude,
+			longitude: tempHomeLocation.longitude,
+			latitudeDelta: 0.01,
+			longitudeDelta: 0.01,
+		});
+		setTempHomeLocation(null); // Clear temporary location after confirming
 	};
 
 	const openModal = () => {
@@ -395,7 +337,7 @@ const HomeScreen = ({ navigation }) => {
 
 			if (thermostatId && isLoggedIn) {
 				fetchTemperatures();
-				fetchInterval.current = setInterval(fetchTemperatures, 100000); // ms
+				fetchInterval.current = setInterval(fetchTemperatures, 10000); // ms
 			} else {
 				console.log("No thermostatId or not logged in");
 				console.log("thermostatId", thermostatId);
@@ -915,6 +857,7 @@ const HomeScreen = ({ navigation }) => {
 			</ScrollView>
 			<Modal visible={showModal} animationType="slide">
 				<View style={styles.modalContainer}>
+					<Text style={styles.title}>Update Home Location</Text>
 					{currentLocation && (
 						<MapView
 							style={styles.map}
@@ -946,20 +889,22 @@ const HomeScreen = ({ navigation }) => {
 							)}
 						</MapView>
 					)}
-					<TouchableOpacity
-						style={styles.confirmButton}
-						onPress={handleConfirmLocation}
-					>
-						<Text style={styles.buttonText}>
-							Confirm Home Location
-						</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.cancelButton}
-						onPress={() => setShowModal(false)}
-					>
-						<Text style={styles.buttonText}>Cancel</Text>
-					</TouchableOpacity>
+					<View style={styles.buttonContainer}>
+						<TouchableOpacity
+							style={styles.confirmButton}
+							onPress={handleConfirmLocation}
+						>
+							<Text style={styles.buttonText}>
+								Confirmm Home Location
+							</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.cancelButton}
+							onPress={() => setShowModal(false)}
+						>
+							<Text style={styles.buttonText}>Cancel</Text>
+						</TouchableOpacity>
+					</View>
 				</View>
 			</Modal>
 		</View>
@@ -981,8 +926,8 @@ const styles = StyleSheet.create({
 	container: {
 		flex: 1,
 		justifyContent: "flex-start",
+		// justifyContent: "center",
 		alignItems: "center",
-		padding: 0,
 		paddingTop: 50,
 	},
 	scheduleButton: {
@@ -1007,7 +952,8 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 		padding: 20,
-		backgroundColor: "#f5f5f5",
+		// backgroundColor: "#f5f5f5",
+		backgroundColor: "#fff3e6",
 		borderRadius: 10,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
@@ -1019,7 +965,6 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		color: "#333",
 		textAlign: "center",
-		marginBottom: 10,
 	},
 	centered: {
 		justifyContent: "center",
@@ -1033,23 +978,23 @@ const styles = StyleSheet.create({
 		width: 300,
 		height: 300,
 		borderRadius: 150,
+		backgroundColor: "rgba(255, 255, 255, 0.8)",
 		justifyContent: "center",
 		alignItems: "center",
-		backgroundColor: "rgba(255, 255, 255, 0.8)",
+		flexDirection: "row",
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 0.1,
 		shadowRadius: 5,
 		elevation: 5,
-		flexDirection: "row",
 	},
 	temperatureOutsideCircle: {
 		width: 340,
 		height: 340,
 		borderRadius: 170,
+		backgroundColor: "rgba(255, 255, 255, 0.2)",
 		justifyContent: "center",
 		alignItems: "center",
-		backgroundColor: "rgba(255, 255, 255, 0.2)",
 		margin: 10,
 	},
 	temperatureColumn: {
@@ -1071,7 +1016,7 @@ const styles = StyleSheet.create({
 		marginTop: 10,
 		padding: 15,
 		borderRadius: 5,
-		backgroundColor: "#4CAF50",
+		backgroundColor: "tomato",
 	},
 	removeButton: {
 		position: "absolute",
@@ -1178,12 +1123,15 @@ const styles = StyleSheet.create({
 	},
 	map: {
 		flex: 1,
+		width: Dimensions.get("window").width,
+		height: Dimensions.get("window").height / 2,
 	},
 	confirmButton: {
 		backgroundColor: "#28a745",
 		padding: 10,
 		borderRadius: 5,
-		marginVertical: 10,
+		marginHorizontal: 25,
+		marginVertical: 25,
 		alignSelf: "center",
 	},
 	modalContainer: {
@@ -1191,15 +1139,20 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		alignItems: "center",
 	},
-	map: {
-		width: Dimensions.get("window").width,
-		height: Dimensions.get("window").height / 2,
+	title: {
+		fontSize: 18,
+		fontWeight: "500",
+		marginTop: 65,
+		marginBottom: 13,
+		textAlign: "center",
+		width: "100%",
 	},
 	cancelButton: {
 		backgroundColor: "#d9534f",
 		padding: 10,
 		borderRadius: 5,
-		marginVertical: 10,
+		marginHorizontal: 25,
+		marginVertical: 25,
 	},
 	updateText: {
 		fontSize: 12,
@@ -1236,5 +1189,4 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 	},
 });
-
 export default HomeScreen;

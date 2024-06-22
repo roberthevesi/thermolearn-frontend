@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
 		marginVertical: 20,
 	},
 	input: {
-		width: "100%",
+		width: "80%",
 		marginVertical: 10,
 		paddingVertical: 12,
 		paddingHorizontal: 10,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 	},
 	button: {
-		width: "100%",
+		width: "80%",
 		padding: 15,
 		marginVertical: 5,
 		backgroundColor: "#14293d",
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
 		fontWeight: "bold",
 	},
 	transparentButton: {
-		width: "100%",
+		width: "80%",
 		padding: 15,
 		marginVertical: 5,
 		backgroundColor: "transparent",

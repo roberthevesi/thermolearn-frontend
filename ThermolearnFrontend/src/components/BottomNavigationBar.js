@@ -1,45 +1,46 @@
+// BottomNavigationBar.js
 import React from "react";
-import HomeScreen from "../screens/HomeScreen";
-import SettingsScreen from "../screens/SettingsScreen";
-import WiFiScreen from "../screens/WiFiScreen";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import Entypo from '@expo/vector-icons/Entypo';
+import { View, Text, TouchableOpacity } from "react-native";
 
-const Tab = createBottomTabNavigator();
+const BottomNavigationBar = ({ state, descriptors, navigation }) => {
+	return (
+		<View
+			style={{
+				flexDirection: "row",
+				justifyContent: "space-around",
+				padding: 10,
+			}}
+		>
+			{state.routes.map((route, index) => {
+				const { options } = descriptors[route.key];
+				const isFocused = state.index === index;
 
-const BottomTabNavigator = () => {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
+				const onPress = () => {
+					const event = navigation.emit({
+						type: "tabPress",
+						target: route.key,
+						canPreventDefault: true,
+					});
 
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'WiFi') {
-            iconName = 'network';
-          } else if (route.name === 'Settings') {
-            iconName = 'cog';
-          }
+					if (!isFocused && !event.defaultPrevented) {
+						navigation.navigate(route.name);
+					}
+				};
 
-          // Return the appropriate icon
-          return <Entypo name={iconName} size={size} color={color} />;
-        },
-      })}
-      tabBarOptions={{
-        activeTintColor: 'tomato',
-        inactiveTintColor: 'gray',
-      }}
-    >
-      <Tab.Screen 
-        name="Home" 
-        component={HomeScreen} 
-        options={{ headerShown: false }} 
-      />
-      <Tab.Screen name="WiFi" component={WiFiScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
-    </Tab.Navigator>
-  );
+				return (
+					<TouchableOpacity
+						key={index}
+						onPress={onPress}
+						style={{ flex: 1, alignItems: "center", padding: 10 }}
+					>
+						<Text style={{ color: isFocused ? "#673ab7" : "#222" }}>
+							{options.title || route.name}
+						</Text>
+					</TouchableOpacity>
+				);
+			})}
+		</View>
+	);
 };
 
-export default BottomTabNavigator;
+export default BottomNavigationBar;
